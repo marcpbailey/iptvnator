@@ -19,7 +19,7 @@ import {
 
 /** Pixels per hour. */
 export const EPG_GUIDE_ZOOM_MIN = 120;
-export const EPG_GUIDE_ZOOM_MAX = 480;
+export const EPG_GUIDE_ZOOM_MAX = 1920;
 export const EPG_GUIDE_ZOOM_STEP = 20;
 export const EPG_GUIDE_ZOOM_DEFAULT = 240;
 
