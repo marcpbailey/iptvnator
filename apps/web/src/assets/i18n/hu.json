@@ -635,6 +635,7 @@
         "EMBEDDED_MPV_EXTRA_OPTIONS_FORBIDDEN_KEYS": "Ezek a beállítások nem módosíthatók a beágyazott lejátszónál: {{keys}}",
         "EMBEDDED_MPV_AUTO_RECONNECT": "Megszakadt adatfolyamok automatikus újracsatlakoztatása",
         "EMBEDDED_MPV_AUTO_RECONNECT_DESCRIPTION": "Ha lejátszás közben megszakad az adatfolyam, a beágyazott lejátszó legfeljebb hat alkalommal, egyre hosszabb várakozás után próbálja újra betölteni. Ha a lejátszás el sem indult, az Újrapróbálkozás műveletet kézzel kell elindítani.",
+        "EMBEDDED_MPV_KEEP_CONTROLS_VISIBLE": "A beágyazott MPV vezérlőinek láthatóvá tétele",
         "VOD_AUTO_FAILOVER": "Automatikus forrásváltás lejátszási hiba esetén",
         "VOD_AUTO_FAILOVER_DESCRIPTION": "Ha egy film nem játszható le, de egy másik lejátszási listában is megtalálható, az alkalmazás automatikusan átválthat a másik forrásra, és megőrzi a lejátszási pozíciót. A funkció alapértelmezés szerint ki van kapcsolva. A váltásról mindig értesítés jelenik meg, mert az eltérő források más szinkronváltozatot tartalmazhatnak.",
         "NAV_PARENTAL": "Szülői felügyelet",
