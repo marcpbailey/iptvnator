@@ -118,6 +118,28 @@ describe('WebPlayerViewComponent shared web controls metadata', () => {
         fixture.destroy();
     });
 
+    it('hides Embedded MPV controls in the mini view without remounting playback', () => {
+        fixture.componentRef.setInput('playerOverride', VideoPlayer.EmbeddedMpv);
+        fixture.detectChanges();
+        const player = fixture.debugElement.query(
+            By.directive(StubEmbeddedMpvPlayerComponent)
+        ).componentInstance as StubEmbeddedMpvPlayerComponent;
+        expect(player.showControls()).toBe(true);
+
+        fixture.componentRef.setInput('showEmbeddedMpvControls', false);
+        fixture.detectChanges();
+        expect(player.showControls()).toBe(false);
+        expect(
+            fixture.debugElement.query(
+                By.directive(StubEmbeddedMpvPlayerComponent)
+            ).componentInstance
+        ).toBe(player);
+
+        fixture.componentRef.setInput('showEmbeddedMpvControls', true);
+        fixture.detectChanges();
+        expect(player.showControls()).toBe(true);
+    });
+
     describe('fullscreen channel panel staging', () => {
         const panel = () =>
             fixture.debugElement.query(

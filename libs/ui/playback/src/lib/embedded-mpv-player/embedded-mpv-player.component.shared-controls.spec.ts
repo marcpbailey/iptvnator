@@ -194,6 +194,32 @@ describe('EmbeddedMpvPlayerComponent shared controls host', () => {
         ).toBe(true);
     });
 
+    it('removes the native controls reservation when controls are disabled', () => {
+        const { fixture } = render('native');
+
+        fixture.componentRef.setInput('showControls', false);
+        fixture.detectChanges();
+        expect(
+            root(fixture).classList.contains(
+                'embedded-mpv-player--controls-enabled'
+            )
+        ).toBe(false);
+        expect(
+            fixture.debugElement.query(By.css('.embedded-mpv-player__controls'))
+        ).toBeNull();
+
+        fixture.componentRef.setInput('showControls', true);
+        fixture.detectChanges();
+        expect(
+            root(fixture).classList.contains(
+                'embedded-mpv-player--controls-enabled'
+            )
+        ).toBe(true);
+        expect(
+            fixture.debugElement.query(By.css('.embedded-mpv-player__controls'))
+        ).not.toBeNull();
+    });
+
     it('preserves the host previous and next episode guards', () => {
         const { fixture, component } = render();
         const controls = sharedControls(fixture);

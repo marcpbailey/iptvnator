@@ -233,8 +233,10 @@ dock and provide a back button to return to the default controls. Popovers and
 menus must stay inside that dock unless the native layering strategy changes.
 The native MPV view deliberately ignores hit testing so mouse movement passes
 through to Chromium and can reveal Angular controls even when the pointer moves
-quickly across the video area. None of these compositor restrictions applies to
-the frame-copy canvas.
+quickly across the video area. The programme guide mini player disables Embedded
+MPV controls, allowing its video viewport to fill the thumbnail; closing the
+guide restores the normal controls. None of these compositor restrictions applies
+to the frame-copy canvas.
 
 ## Frame-Copy Engine (Experimental, Apple Silicon, Linux and Windows)
 

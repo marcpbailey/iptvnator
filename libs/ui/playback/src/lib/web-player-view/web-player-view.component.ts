@@ -145,6 +145,7 @@ export class WebPlayerViewComponent implements OnDestroy {
     readonly startTime = input(0);
     readonly volume = input(1);
     readonly playerOverride = input<VideoPlayer | null>(null);
+    readonly showEmbeddedMpvControls = input(true);
     readonly seriesNavigation = input<SeriesPlaybackNavigation | null>(null);
     readonly mediaTitle = input<PlayerMediaTitle | null>(null);
     /** Next episode for the shared controls' "Up next" card; series hosts only. */

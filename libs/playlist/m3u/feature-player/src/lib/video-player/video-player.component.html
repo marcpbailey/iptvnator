@@ -126,6 +126,7 @@
                                     : (playerSettings().player ?? null)
                             "
                             [volume]="volume()"
+                            [showEmbeddedMpvControls]="!guideOpen()"
                             [timelineSegments]="catchupTimelineSegments()"
                             [recordingMetadata]="recordingMetadata()"
                             (externalFallbackRequested)="
