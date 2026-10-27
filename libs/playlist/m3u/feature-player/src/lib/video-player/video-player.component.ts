@@ -820,6 +820,7 @@ export class VideoPlayerComponent
                 this.isExternalPlayer(this.settingsStore.player());
             const playing = usesExternalPlayer
                 ? isLiveExternalPlayerSession(externalSession) &&
+                  externalSession.status !== 'launching' &&
                   externalSession.streamUrl === channel?.url
                 : this.isActivelyPlaying();
             if (

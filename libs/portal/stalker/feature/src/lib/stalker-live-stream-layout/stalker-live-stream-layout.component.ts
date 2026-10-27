@@ -670,6 +670,7 @@ export class StalkerLiveStreamLayoutComponent
         sourceId: string;
         channelId: string;
         streamUrl: string;
+        previousSessionId: string | null;
     } | null>(null);
     private readonly isActivelyPlaying = signal(true);
     private readonly resumeTargetChannelId = signal<string | null>(null);
@@ -770,9 +771,13 @@ export class StalkerLiveStreamLayoutComponent
             if (!target || this.isRadioMode() || this.usesEmbeddedPlayer())
                 return;
             const session = this.externalPlayback?.activeSession();
+            const matchesSession =
+                session?.id !== target.previousSessionId &&
+                session?.streamUrl === target.streamUrl;
             if (
+                matchesSession &&
                 isLiveExternalPlayerSession(session) &&
-                session.streamUrl === target.streamUrl
+                session.status !== 'launching'
             ) {
                 void this.playbackResumeService.recordPlaybackStarted(
                     'stalker',
@@ -782,7 +787,11 @@ export class StalkerLiveStreamLayoutComponent
                 );
             } else {
                 void this.playbackResumeService.recordPlaybackStopped();
-                if (session && !isLiveExternalPlayerSession(session))
+                if (
+                    matchesSession &&
+                    session &&
+                    !isLiveExternalPlayerSession(session)
+                )
                     this.externalResumeTarget.set(null);
             }
         });
@@ -1166,6 +1175,8 @@ export class StalkerLiveStreamLayoutComponent
                         sourceId,
                         channelId,
                         streamUrl: playback.streamUrl,
+                        previousSessionId:
+                            this.externalPlayback?.activeSession()?.id ?? null,
                     });
                 }
                 void this.portalPlayer.openResolvedPlayback(playback, true);

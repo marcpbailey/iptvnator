@@ -477,6 +477,7 @@ export class LiveStreamLayoutComponent
             const playing = this.usesEmbeddedPlayer()
                 ? this.isActivelyPlaying() && !this.startPaused()
                 : isLiveExternalPlayerSession(externalSession) &&
+                  externalSession.status !== 'launching' &&
                   externalSession.streamUrl === playback.streamUrl;
             if (!playing) {
                 void this.playbackResumeService.recordPlaybackStopped();

@@ -331,6 +331,38 @@ describe('VideoPlayerComponent', () => {
         expect(recordStarted).not.toHaveBeenCalled();
     });
 
+    it('remembers an external M3U channel after the player starts', () => {
+        player.set(VideoPlayer.MPV);
+        const recordStarted = jest
+            .spyOn(
+                TestBed.inject(PlaybackResumeService),
+                'recordPlaybackStarted'
+            )
+            .mockResolvedValue(undefined);
+        syncStoreState(sampleChannel);
+        externalSession.set({
+            id: 'session-1',
+            player: 'mpv',
+            status: 'launching',
+            title: sampleChannel.name,
+            streamUrl: sampleChannel.url,
+            startedAt: '2026-10-27T00:00:00Z',
+            updatedAt: '2026-10-27T00:00:00Z',
+            canClose: true,
+        });
+
+        fixture.detectChanges();
+        expect(recordStarted).not.toHaveBeenCalled();
+
+        externalSession.set({ ...externalSession()!, status: 'playing' });
+        fixture.detectChanges();
+        expect(recordStarted).toHaveBeenCalledWith(
+            'm3u',
+            'playlist-1',
+            sampleChannel.url
+        );
+    });
+
     it('does not remember M3U video on demand as a live channel', () => {
         const movie = {
             ...sampleChannel,

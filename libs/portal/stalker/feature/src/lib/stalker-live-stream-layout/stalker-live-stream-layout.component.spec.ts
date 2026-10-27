@@ -440,6 +440,16 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         const recordStopped = jest
             .spyOn(resume, 'recordPlaybackStopped')
             .mockResolvedValue(undefined);
+        externalSession.set({
+            id: 'previous-session',
+            player: 'mpv',
+            status: 'closed',
+            title: 'Previous channel',
+            streamUrl: 'https://example.com/alpha.m3u8',
+            startedAt: '2026-10-26T00:00:00Z',
+            updatedAt: '2026-10-26T00:00:00Z',
+            canClose: false,
+        });
 
         await component.playChannel(channels[0], true);
         fixture.detectChanges();
@@ -448,13 +458,17 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         externalSession.set({
             id: 'session-1',
             player: 'mpv',
-            status: 'playing',
+            status: 'launching',
             title: 'Channel',
             streamUrl: 'https://example.com/alpha.m3u8',
             startedAt: '2026-10-27T00:00:00Z',
             updatedAt: '2026-10-27T00:00:00Z',
             canClose: true,
         });
+        fixture.detectChanges();
+        expect(recordStarted).not.toHaveBeenCalled();
+
+        externalSession.set({ ...externalSession()!, status: 'playing' });
         fixture.detectChanges();
         expect(recordStarted).toHaveBeenCalledWith(
             'stalker',

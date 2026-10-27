@@ -414,13 +414,17 @@ describe('LiveStreamLayoutComponent', () => {
         externalSession.set({
             id: 'session-1',
             player: 'mpv',
-            status: 'playing',
+            status: 'launching',
             title: 'Sample Channel',
             streamUrl: 'https://example.com/live.ts',
             startedAt: '2026-10-27T00:00:00Z',
             updatedAt: '2026-10-27T00:00:00Z',
             canClose: true,
         });
+        fixture.detectChanges();
+        expect(recordStarted).not.toHaveBeenCalled();
+
+        externalSession.set({ ...externalSession()!, status: 'playing' });
         fixture.detectChanges();
         expect(recordStarted).toHaveBeenCalledWith(
             'xtream',
