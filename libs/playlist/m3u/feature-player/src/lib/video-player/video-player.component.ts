@@ -812,7 +812,7 @@ export class VideoPlayerComponent
             const playlistId = this.activePlaylistId();
             const channel = this.activeChannel();
             const playing = this.isActivelyPlaying();
-            if (playlistId && channel?.url && playing) {
+            if (playlistId && channel?.url && playing && !this.startPaused()) {
                 void this.playbackResumeService.recordPlaybackStarted(
                     'm3u',
                     playlistId,

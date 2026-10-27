@@ -277,6 +277,9 @@ describe('VideoPlayerComponent', () => {
 
     it('prepares a remembered paused channel without autoplay', () => {
         const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
         resume.setPendingResume('playlist-1', sampleChannel.url, false);
         channels.set([sampleChannel]);
 
@@ -285,12 +288,29 @@ describe('VideoPlayerComponent', () => {
         fixture.detectChanges();
 
         expect(component.startPaused()).toBe(true);
+        expect(recordStarted).not.toHaveBeenCalled();
         expect(storeMock.dispatch).toHaveBeenCalledWith(
             ChannelActions.setActiveChannel({
                 channel: sampleChannel,
                 startPlayback: false,
             })
         );
+    });
+
+    it('does not record a selected external channel as playing', () => {
+        player.set(VideoPlayer.MPV);
+        const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
+        resume.setPendingResume('playlist-1', sampleChannel.url, false);
+        channels.set([sampleChannel]);
+
+        fixture.detectChanges();
+        syncStoreState(sampleChannel);
+        fixture.detectChanges();
+
+        expect(recordStarted).not.toHaveBeenCalled();
     });
 
     it('does not restore a channel in a locked group', () => {

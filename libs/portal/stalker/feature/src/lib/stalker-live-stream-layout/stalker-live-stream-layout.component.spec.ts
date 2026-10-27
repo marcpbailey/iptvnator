@@ -417,6 +417,9 @@ describe('StalkerLiveStreamLayoutComponent', () => {
     it('clears the startup pause when another channel is selected', async () => {
         const channels = defaultItvChannels();
         const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
         resume.setPendingResume(
             'playlist-1',
             'https://example.com/expired-session',
@@ -427,6 +430,7 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         fixture.detectChanges();
         await fixture.whenStable();
         expect(component.startPaused()).toBe(true);
+        expect(recordStarted).not.toHaveBeenCalled();
 
         await component.playChannel(channels[1], true);
 

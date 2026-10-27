@@ -327,6 +327,9 @@ describe('LiveStreamLayoutComponent', () => {
 
     it('uses the current Xtream URL and stays paused when autoplay is off', () => {
         const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
         resume.setPendingResume(
             playlist.id,
             'https://example.com/expired-url',
@@ -341,6 +344,7 @@ describe('LiveStreamLayoutComponent', () => {
             'https://example.com/live.ts'
         );
         expect(component.startPaused()).toBe(true);
+        expect(recordStarted).not.toHaveBeenCalled();
         expect(xtreamStore.openPlayer).not.toHaveBeenCalled();
     });
 

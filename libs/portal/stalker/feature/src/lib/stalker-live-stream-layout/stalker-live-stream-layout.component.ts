@@ -721,7 +721,7 @@ export class StalkerLiveStreamLayoutComponent
             const playlistId = this.stalkerStore.currentPlaylist()?._id;
             const channelId = this.selectedChannelId();
             if (!playback || !playlistId || !channelId) return;
-            if (this.isActivelyPlaying()) {
+            if (this.isActivelyPlaying() && !this.startPaused()) {
                 void this.playbackResumeService.recordPlaybackStarted(
                     'stalker',
                     playlistId,

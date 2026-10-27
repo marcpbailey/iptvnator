@@ -468,7 +468,7 @@ export class LiveStreamLayoutComponent
             const playback = this.activePlayback();
             const playlist = this.xtreamStore.currentPlaylist();
             if (!playback?.isLive || !playlist) return;
-            if (!this.isActivelyPlaying()) {
+            if (!this.isActivelyPlaying() || this.startPaused()) {
                 void this.playbackResumeService.recordPlaybackStopped();
             } else {
                 void this.playbackResumeService.recordPlaybackStarted(
