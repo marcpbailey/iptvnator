@@ -276,6 +276,10 @@ describe('VideoPlayerComponent', () => {
             'app-web-player-view'
         );
         expect(playerBefore).not.toBeNull();
+        const playerView = fixture.debugElement.query(
+            By.directive(StubWebPlayerViewComponent)
+        ).componentInstance as StubWebPlayerViewComponent;
+        expect(playerView.showEmbeddedMpvControls()).toBe(true);
         expect(
             fixture.nativeElement.querySelector('app-epg-timeline')
         ).not.toBeNull();
@@ -313,6 +317,7 @@ describe('VideoPlayerComponent', () => {
         expect(fixture.nativeElement.querySelector('app-web-player-view')).toBe(
             playerBefore
         );
+        expect(playerView.showEmbeddedMpvControls()).toBe(false);
         expect(headerContext.action()?.active?.()).toBe(true);
 
         component.closeGuide();
@@ -325,6 +330,7 @@ describe('VideoPlayerComponent', () => {
         expect(fixture.nativeElement.querySelector('app-web-player-view')).toBe(
             playerBefore
         );
+        expect(playerView.showEmbeddedMpvControls()).toBe(true);
     });
 
     it('toggles the guide with G, ignores typing, and lets the guide own other keys', () => {
