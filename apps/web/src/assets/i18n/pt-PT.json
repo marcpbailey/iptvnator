@@ -635,6 +635,7 @@
         "EMBEDDED_MPV_EXTRA_OPTIONS_FORBIDDEN_KEYS": "Estas opções não podem ser alteradas para o leitor integrado: {{keys}}",
         "EMBEDDED_MPV_AUTO_RECONNECT": "Restabelecer automaticamente transmissões interrompidas",
         "EMBEDDED_MPV_AUTO_RECONNECT_DESCRIPTION": "Quando uma transmissão em reprodução é interrompida, o leitor integrado volta a carregá-la com intervalos crescentes, até 6 tentativas. Se a transmissão nunca chegou a iniciar, é necessário utilizar Tentar novamente manualmente.",
+        "EMBEDDED_MPV_KEEP_CONTROLS_VISIBLE": "Manter os controlos do MPV incorporado visíveis",
         "VOD_AUTO_FAILOVER": "Trocar de fonte automaticamente ao falhar a reprodução",
         "VOD_AUTO_FAILOVER_DESCRIPTION": "Quando um filme falha na reprodução e existe noutra playlist, muda automaticamente para essa fonte e mantém a posição. Desativado por predefinição. A mudança é sempre anunciada porque a outra fonte pode ter uma dobragem diferente.",
         "NAV_PARENTAL": "Controlo parental",

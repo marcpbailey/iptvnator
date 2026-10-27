@@ -74,6 +74,14 @@ export const PLAYBACK_SETTINGS_SEARCH_ENTRIES: readonly SettingsSearchEntry[] =
             fallbackId: 'video-player',
         },
         {
+            id: 'embedded-mpv-keep-controls-visible',
+            section: 'playback',
+            labelKey: 'SETTINGS.EMBEDDED_MPV_KEEP_CONTROLS_VISIBLE',
+            keywords: ['mpv', 'embedded controls', 'keep visible'],
+            requires: ['embedded-mpv'],
+            fallbackId: 'video-player',
+        },
+        {
             id: 'mpv-player-path',
             section: 'playback',
             labelKey: 'SETTINGS.MPV_PLAYER_PATH_LABEL',
