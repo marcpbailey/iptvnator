@@ -95,13 +95,7 @@ export class PlayerControlsComponent implements OnDestroy {
     readonly layout = new ControlsLayout();
     /** Compact dock: narrow inline players and phone-sized viewports. */
     readonly isCompact = computed(() => this.layout.mode() === 'compact');
-    private readonly visibility = new ControlsVisibility(
-        () =>
-            this.isPlaying() && !this.keepControlsVisible() &&
-            !this.chrome.engaged &&
-            !this.menus.anyOpen() &&
-            !this.state().statusMessage
-    );
+    private readonly visibility = new ControlsVisibility(() => this.canHide());
     private readonly fullscreen = new ControlsFullscreen(
         () => this.fullscreenTarget() ?? this.playerSurface(),
         () => this.reveal()
@@ -429,6 +423,16 @@ export class PlayerControlsComponent implements OnDestroy {
     reveal(options: { scheduleHide?: boolean } = {}): void {
         this.shortcuts.activate();
         this.visibility.reveal(options);
+    }
+
+    private canHide(): boolean {
+        return (
+            this.isPlaying() &&
+            !this.keepControlsVisible() &&
+            !this.chrome.engaged &&
+            !this.menus.anyOpen() &&
+            !this.state().statusMessage
+        );
     }
 
 }
