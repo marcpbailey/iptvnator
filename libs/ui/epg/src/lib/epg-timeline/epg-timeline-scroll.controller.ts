@@ -39,6 +39,8 @@ export class TimelineScrollController {
     private scrollFrame = 0;
     private lastFocusKey: string | null = null;
     private lastScroller: HTMLElement | null = null;
+    private lastAxisStartMs: number | null = null;
+    private viewedCentreMs: number | null = null;
 
     constructor(private readonly ctx: TimelineScrollContext) {}
 
@@ -62,6 +64,10 @@ export class TimelineScrollController {
     }
 
     scrollToOffset(offsetMin: number, frac: number, smooth = true): void {
+        if (frac === 0.5) {
+            this.viewedCentreMs =
+                this.ctx.axis().startMs + offsetMin * TIMELINE_MINUTE_MS;
+        }
         requestAnimationFrame(() => {
             const scroller = this.ctx.ribbon();
             if (!scroller) {
@@ -90,6 +96,11 @@ export class TimelineScrollController {
             const centerOffsetMin =
                 (scroller.scrollLeft + scroller.clientWidth / 2) /
                 this.ctx.scale();
+            if (this.ctx.axis().startMs === this.lastAxisStartMs) {
+                this.viewedCentreMs =
+                    this.ctx.axis().startMs +
+                    centerOffsetMin * TIMELINE_MINUTE_MS;
+            }
             const dayKey = dayKeyAtOffset(this.ctx.axis(), centerOffsetMin);
             // Skip gap days: committing a day with no programmes flips the host
             // to `empty-day` and unmounts the ribbon mid-scroll, stranding the
@@ -112,13 +123,16 @@ export class TimelineScrollController {
      */
     maybeAutoFocus(
         scroller: HTMLElement | undefined,
-        programs: readonly EpgProgram[]
+        programs: readonly EpgProgram[],
+        contextKey?: string | null
     ): void {
-        const key = programsFocusKey(programs);
+        const key =
+            programs.length > 0 ? contextKey || programsFocusKey(programs) : '';
         // Nothing to centre without a ribbon or programmes.
         if (!scroller || !key) {
             return;
         }
+        const axisStartMs = this.ctx.axis().startMs;
         if (key === this.lastFocusKey) {
             // Same channel already focused. A *new* scroller element means the
             // ribbon was unmounted then remounted (e.g. the inline panel was
@@ -129,7 +143,37 @@ export class TimelineScrollController {
             // we never yank the viewport out from under the user.
             if (scroller !== this.lastScroller) {
                 this.lastScroller = scroller;
+                this.lastAxisStartMs = axisStartMs;
                 this.restorePosition();
+            } else if (
+                this.lastAxisStartMs !== null &&
+                axisStartMs !== this.lastAxisStartMs
+            ) {
+                const viewedCentreMs = this.viewedCentreMs;
+                this.lastAxisStartMs = axisStartMs;
+                requestAnimationFrame(() => {
+                    if (this.ctx.ribbon() !== scroller) return;
+                    if (viewedCentreMs !== null) {
+                        const centreOffsetMin =
+                            (viewedCentreMs - axisStartMs) / TIMELINE_MINUTE_MS;
+                        scroller.scrollTo({
+                            left: Math.max(
+                                0,
+                                centreOffsetMin * this.ctx.scale() -
+                                    scroller.clientWidth / 2
+                            ),
+                            behavior: 'auto',
+                        });
+                    } else {
+                        this.restorePosition();
+                    }
+                });
+            } else {
+                this.viewedCentreMs =
+                    axisStartMs +
+                    ((scroller.scrollLeft + scroller.clientWidth / 2) /
+                        this.ctx.scale()) *
+                        TIMELINE_MINUTE_MS;
             }
             return;
         }
@@ -140,10 +184,15 @@ export class TimelineScrollController {
         // The host's predicate applies the EPG display offset, so a guide
         // whose raw dates sit on the adjacent day still counts.
         if (!this.ctx.hasProgramsForDay(todayKey)) {
+            this.lastFocusKey = key;
+            this.lastScroller = scroller;
+            this.lastAxisStartMs = axisStartMs;
+            this.restorePosition();
             return;
         }
         this.lastFocusKey = key;
         this.lastScroller = scroller;
+        this.lastAxisStartMs = axisStartMs;
         this.ctx.commitDay(todayKey);
         // Instant: land already centred, no annoying scroll animation.
         this.focusCurrentProgram(false);
@@ -156,7 +205,9 @@ export class TimelineScrollController {
      */
     private restorePosition(): void {
         if (this.ctx.viewDayKey() === getTodayEpgDateKey()) {
-            this.focusCurrentProgram(false);
+            if (this.ctx.hasProgramsForDay(getTodayEpgDateKey())) {
+                this.focusCurrentProgram(false);
+            }
         } else {
             this.scrollToDateKey(this.ctx.viewDayKey(), 0.5, false);
         }

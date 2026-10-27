@@ -194,6 +194,15 @@ describe('VideoPlayerComponent — M3U movie recognition gate', () => {
                     provide: EpgService,
                     useValue: {
                         currentEpgPrograms$: epgPrograms$.asObservable(),
+                        currentChannelHasPrograms$: of(false),
+                        currentChannelWindowLoading$: of(false),
+                        sourceRevision: signal(0),
+                        loadChannelProgramsForWindow: jest
+                            .fn()
+                            .mockResolvedValue(undefined),
+                        getChannelProgramsForProviderWindow: jest
+                            .fn()
+                            .mockResolvedValue([]),
                         getChannelMetadataForChannels: () => of(new Map()),
                     },
                 },

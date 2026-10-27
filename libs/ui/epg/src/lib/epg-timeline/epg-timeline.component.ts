@@ -96,6 +96,7 @@ export class EpgTimelineComponent {
     readonly channelLogo = input('');
     readonly sourceLabel = input('Timeline');
     readonly archivePlaybackAvailable = input(false);
+    readonly futurePlaybackAvailable = input(false);
     /** Source/channel identity captured by programme details, independent of playback. */
     readonly archiveDownloadAvailable = input(false);
     readonly archiveContextKey = input<string | null>(null);
@@ -104,6 +105,7 @@ export class EpgTimelineComponent {
     readonly isLivePlayback = input(true);
     readonly loading = input(false);
     readonly emptyReason = input<EpgTimelineEmptyReason>('none');
+    readonly hasProgramsElsewhere = input(false);
     readonly selectedDate = input<string | null>(null);
     readonly collapsed = input(false);
     readonly summary = input<EpgTimelineSummary | null>(null);
@@ -195,6 +197,7 @@ export class EpgTimelineComponent {
             allowGroup: this.scale() < TIMELINE_GROUP_ZOOM_MAX,
             nowMs: this.nowMs(),
             archivePlaybackAvailable: this.archivePlaybackAvailable(),
+            futurePlaybackAvailable: this.futurePlaybackAvailable(),
             archiveWindowStartMs: this.archiveWindowStartMs(),
         })
     );
@@ -242,7 +245,9 @@ export class EpgTimelineComponent {
             return reason;
         }
         if (this.programs().length === 0) {
-            return 'channel-unmapped';
+            return this.hasProgramsElsewhere()
+                ? 'empty-day'
+                : 'channel-unmapped';
         }
         if (
             !hasProgramsForDateKey(
@@ -259,17 +264,6 @@ export class EpgTimelineComponent {
         const state = this.renderState();
         return state === 'loading' || state === 'ribbon' ? 'none' : state;
     });
-    readonly hasOtherDays = computed(() => this.programs().length > 0);
-
-    /**
-     * "Now" + zoom act on the ribbon, so they only make sense when a ribbon is
-     * rendered. Hidden (not disabled) otherwise — a disabled control implies it
-     * could become usable, but with no programmes for the day there is nothing
-     * to jump to or zoom.
-     */
-    readonly showRibbonControls = computed(
-        () => this.renderState() === 'ribbon'
-    );
 
     /**
      * The date stepper navigates between days, which is only meaningful when the
@@ -317,7 +311,10 @@ export class EpgTimelineComponent {
         effect(() => {
             const scroller = this.ribbon()?.nativeElement;
             const programs = this.programs();
-            untracked(() => this.scroll.maybeAutoFocus(scroller, programs));
+            const contextKey = this.archiveContextKey();
+            untracked(() =>
+                this.scroll.maybeAutoFocus(scroller, programs, contextKey)
+            );
         });
     }
 
@@ -351,11 +348,9 @@ export class EpgTimelineComponent {
 
     canCatchUp(block: TimelineBlock): boolean {
         return canCatchUpProgramme(
-            block.when,
-            block.startMs,
-            this.archivePlaybackAvailable(),
-            this.archiveDays(),
-            this.nowMs()
+            block.when, block.startMs,
+            this.archivePlaybackAvailable(), this.archiveDays(),
+            this.nowMs(), this.futurePlaybackAvailable()
         );
     }
 
