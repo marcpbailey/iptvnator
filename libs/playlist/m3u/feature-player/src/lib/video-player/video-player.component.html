@@ -177,6 +177,8 @@
                         @if (epgViewMode() === 'list') {
                             <app-epg-list-view
                                 [programs]="epgPrograms()"
+                                [loading]="epgWindowLoading()"
+                                [hasProgramsElsewhere]="hasProgramsElsewhere()"
                                 [offsetMinutes]="epgOffsetMinutes()"
                                 [channelName]="timelineChannelName()"
                                 [channelLogo]="timelineChannelLogo()"
@@ -184,6 +186,7 @@
                                 [archivePlaybackAvailable]="
                                     archivePlaybackAvailable()
                                 "
+                                [futurePlaybackAvailable]="archivePlaybackAvailable()"
                                 [archiveDays]="epgArchiveDays()"
                                 [activeProgram]="activeEpgProgramOrNull()"
                                 [isLivePlayback]="!showReturnToLive()"
@@ -214,6 +217,8 @@
                         } @else {
                             <app-epg-timeline
                                 [programs]="epgPrograms()"
+                                [loading]="epgWindowLoading()"
+                                [hasProgramsElsewhere]="hasProgramsElsewhere()"
                                 [offsetMinutes]="epgOffsetMinutes()"
                                 [channelName]="timelineChannelName()"
                                 [channelLogo]="timelineChannelLogo()"
@@ -221,6 +226,7 @@
                                 [archivePlaybackAvailable]="
                                     archivePlaybackAvailable()
                                 "
+                                [futurePlaybackAvailable]="archivePlaybackAvailable()"
                                 [archiveDays]="epgArchiveDays()"
                                 [activeProgram]="activeEpgProgramOrNull()"
                                 [isLivePlayback]="!showReturnToLive()"

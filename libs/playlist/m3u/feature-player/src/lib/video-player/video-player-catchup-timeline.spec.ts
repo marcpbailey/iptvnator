@@ -14,17 +14,20 @@ import { PORTAL_EXTERNAL_PLAYBACK } from '@iptvnator/portal/shared/util';
 import {
     DataService,
     PlaylistsService,
+    RecordingsService,
     RuntimeCapabilitiesService,
     SettingsStore,
     TmdbEnrichmentService,
 } from '@iptvnator/services';
 import {
     EpgProgram,
+    PlaylistMeta,
     Settings,
     VideoPlayer,
 } from '@iptvnator/shared/interfaces';
 import type { VideoPlayerComponent as VideoPlayerComponentInstance } from './video-player.component';
 import {
+    activePlaylistMeta,
     activeEpgProgram,
     activePlaybackUrl,
     dataServiceMock,
@@ -100,6 +103,12 @@ describe('VideoPlayerComponent — catch-up timeline segments', () => {
         activeEpgProgram.set(null);
         epgPrograms$.next([]);
         playlistId.set('playlist-1');
+        activePlaylistMeta.set(null);
+        epgServiceMock.loadChannelProgramsForWindow.mockClear();
+        epgServiceMock.getChannelProgramsForProviderWindow
+            .mockReset()
+            .mockResolvedValue([]);
+        epgServiceMock.sourceRevision.set(0);
         player.set(VideoPlayer.VideoJs);
         showCaptions.set(false);
         stripCountryPrefix.set(false);
@@ -206,6 +215,59 @@ describe('VideoPlayerComponent — catch-up timeline segments', () => {
         ).timelineSegments();
     };
 
+    it('requests the selected local day and refreshes when its effective sources change', () => {
+        activePlaylistMeta.set({
+            epgUrls: ['https://guide.example/a.xml'],
+            disabledEpgUrls: ['https://guide.example/disabled.xml'],
+        } as PlaylistMeta);
+        fixture.componentInstance.onLiveEpgSelectedDateChange('2026-10-25');
+        fixture.detectChanges();
+        expect(
+            epgServiceMock.loadChannelProgramsForWindow
+        ).toHaveBeenLastCalledWith(
+            'sample-tvg-id',
+            new Date('2026-10-25T00:00:00').getTime(),
+            new Date('2026-10-26T00:00:00').getTime(),
+            ['https://guide.example/a.xml'],
+            expect.anything()
+        );
+
+        activePlaylistMeta.set({
+            epgUrls: ['https://guide.example/b.xml'],
+        } as PlaylistMeta);
+        fixture.detectChanges();
+        expect(
+            epgServiceMock.loadChannelProgramsForWindow
+        ).toHaveBeenLastCalledWith(
+            'sample-tvg-id',
+            expect.any(Number),
+            expect.any(Number),
+            ['https://guide.example/b.xml'],
+            expect.anything()
+        );
+
+        epgServiceMock.sourceRevision.set(1);
+        fixture.detectChanges();
+        expect(
+            epgServiceMock.loadChannelProgramsForWindow
+        ).toHaveBeenCalledTimes(4);
+
+        syncStoreState({
+            ...sampleChannel,
+            tvg: { ...sampleChannel.tvg, id: 'another-channel' },
+        });
+        fixture.detectChanges();
+        expect(
+            epgServiceMock.loadChannelProgramsForWindow
+        ).toHaveBeenLastCalledWith(
+            'another-channel',
+            expect.any(Number),
+            expect.any(Number),
+            ['https://guide.example/b.xml'],
+            expect.anything()
+        );
+    });
+
     it('draws nothing during live playback', () => {
         epgPrograms$.next([programme('Picked', 0, 1)]);
         activeEpgProgram.set(programme('Picked', 0, 1));
@@ -241,6 +303,67 @@ describe('VideoPlayerComponent — catch-up timeline segments', () => {
 
         expect(forwarded()).toEqual([
             { startSeconds: 0, endSeconds: HOUR, title: 'Picked' },
+        ]);
+    });
+
+    it('loads intervening archive programmes outside the selected mini-guide day', async () => {
+        const picked = programme('Picked', 0, 1);
+        const middle = programme('Middle day', 24, 25);
+        epgPrograms$.next([picked]);
+        epgServiceMock.getChannelProgramsForProviderWindow.mockResolvedValue([
+            middle,
+        ]);
+        activeEpgProgram.set(picked);
+        activePlaybackUrl.set(
+            `http://localhost/archive.m3u8?utc=${T0}&lutc=${T0 + 26 * HOUR}`
+        );
+        fixture.detectChanges();
+        await Promise.resolve();
+        fixture.detectChanges();
+
+        expect(
+            epgServiceMock.getChannelProgramsForProviderWindow
+        ).toHaveBeenCalledWith(
+            'sample-tvg-id',
+            T0 * 1000,
+            (T0 + 26 * HOUR) * 1000,
+            []
+        );
+        expect(forwarded()).toContainEqual({
+            startSeconds: 24 * HOUR,
+            endSeconds: 25 * HOUR,
+            title: 'Middle day',
+        });
+    });
+
+    it('enriches a recording from its full interval after the viewed day changes', async () => {
+        const middle = programme('Middle day', 24, 25);
+        epgPrograms$.next([programme('First day', 0, 1)]);
+        epgServiceMock.getChannelProgramsForProviderWindow.mockResolvedValue([
+            middle,
+        ]);
+        const update = jest
+            .spyOn(TestBed.inject(RecordingsService), 'updatePrograms')
+            .mockResolvedValue({ success: true });
+        fixture.componentInstance.onLiveEpgSelectedDateChange('2026-10-25');
+        fixture.componentInstance.onRecordingStopped({
+            targetPath: '/recordings/overnight.ts',
+            startedAt: new Date(T0 * 1000).toISOString(),
+            endedAt: new Date((T0 + 26 * HOUR) * 1000).toISOString(),
+            epgChannelId: 'sample-tvg-id',
+            sourceItemKey: 'channel-1',
+        });
+        await Promise.resolve();
+        expect(
+            epgServiceMock.getChannelProgramsForProviderWindow
+        ).toHaveBeenCalledWith(
+            'sample-tvg-id',
+            T0 * 1000,
+            (T0 + 26 * HOUR) * 1000,
+            []
+        );
+        expect(update).toHaveBeenCalledWith('/recordings/overnight.ts', [
+            expect.objectContaining({ title: 'Middle day' }),
         ]);
     });
 });

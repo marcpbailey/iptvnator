@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, signal } from '@angular/core';
 import { LazySnackBar } from '@iptvnator/services/lazy-snack-bar';
 import { TranslateService } from '@ngx-translate/core';
 import { BehaviorSubject, from, Observable, of } from 'rxjs';
@@ -26,6 +26,7 @@ import {
     normalizeLookupSourceUrls,
 } from './epg-lookup-normalization.util';
 import { normalizeEpgUrls } from '@iptvnator/shared/m3u-utils';
+import { EpgChannelWindowLookup } from './epg-channel-window.lookup';
 
 const debugEpgService = createDevLogger('EpgService');
 
@@ -41,14 +42,29 @@ export class EpgService {
 
     constructor() {
         this.sourceSettings.changed$.subscribe(() => {
+            this.programRequestId++;
+            this.sourceRevision.update((revision) => revision + 1);
             this.clearCache();
+            this.currentWindowIdentity = null;
             this.currentEpgPrograms.next([]);
+            this.currentChannelHasPrograms.next(false);
+            this.currentChannelWindowLoading.next(false);
             this.epgAvailable.next(true);
         });
     }
 
     private epgAvailable = new BehaviorSubject<boolean>(false);
     private currentEpgPrograms = new BehaviorSubject<EpgProgram[]>([]);
+    private currentChannelHasPrograms = new BehaviorSubject(false);
+    private currentChannelWindowLoading = new BehaviorSubject(false);
+    private currentWindowIdentity: string | null = null;
+    private programRequestId = 0;
+    readonly sourceRevision = signal(0);
+    private readonly channelWindow = new EpgChannelWindowLookup(
+        this.epgBridge,
+        (excluding) => this.getGlobalEpgSourceUrls(excluding),
+        () => this.epgOffsetMinutes()
+    );
 
     /** Channel icons/display names; same scope ladder as the programmes. */
     private readonly channelMetadata = new EpgChannelMetadataLookup(
@@ -98,6 +114,10 @@ export class EpgService {
 
     readonly epgAvailable$ = this.epgAvailable.asObservable();
     readonly currentEpgPrograms$ = this.currentEpgPrograms.asObservable();
+    readonly currentChannelHasPrograms$ =
+        this.currentChannelHasPrograms.asObservable();
+    readonly currentChannelWindowLoading$ =
+        this.currentChannelWindowLoading.asObservable();
 
     /**
      * Fetches EPG from the given URLs
@@ -176,6 +196,105 @@ export class EpgService {
                 this.epgAvailable.next(programs.length > 0);
                 this.currentEpgPrograms.next(programs);
             });
+    }
+
+    /** Load one displayed day through the guide's uncapped overlap query. */
+    async loadChannelProgramsForWindow(
+        channelId: string,
+        fromMs: number,
+        toMs: number,
+        playlistSourceUrls: string[] = [],
+        currentDayWindow?: { fromMs: number; toMs: number }
+    ): Promise<void> {
+        const requestId = ++this.programRequestId;
+        const lookupKey = channelId.trim();
+        if (!this.epgBridge.supportsGuide || !lookupKey) {
+            this.currentWindowIdentity = null;
+            this.currentEpgPrograms.next([]);
+            this.currentChannelHasPrograms.next(false);
+            this.currentChannelWindowLoading.next(false);
+            return;
+        }
+
+        const playlistUrls = normalizeEpgUrls(playlistSourceUrls);
+        const identity = JSON.stringify([
+            lookupKey,
+            playlistUrls,
+            this.getGlobalEpgSourceUrls(playlistUrls),
+            this.epgOffsetMinutes(),
+        ]);
+        if (identity !== this.currentWindowIdentity) {
+            this.currentEpgPrograms.next([]);
+            this.currentChannelHasPrograms.next(false);
+        }
+        this.currentWindowIdentity = identity;
+        this.currentChannelWindowLoading.next(
+            this.currentEpgPrograms.value.length === 0 &&
+                !this.currentChannelHasPrograms.value
+        );
+
+        try {
+            const programs = await this.channelWindow.programs(
+                lookupKey,
+                fromMs,
+                toMs,
+                playlistSourceUrls
+            );
+            if (requestId !== this.programRequestId) return;
+            const currentPrograms = currentDayWindow
+                ? await this.channelWindow.programs(
+                      lookupKey,
+                      currentDayWindow.fromMs,
+                      currentDayWindow.toMs,
+                      playlistSourceUrls
+                  )
+                : [];
+            if (requestId !== this.programRequestId) return;
+            const combined = Array.from(
+                new Map(
+                    [...programs, ...currentPrograms].map((program) => [
+                        `${program.channel}\n${program.start}\n${program.title}`,
+                        program,
+                    ])
+                ).values()
+            ).sort((left, right) => left.start.localeCompare(right.start));
+            this.currentEpgPrograms.next(combined);
+            this.epgAvailable.next(combined.length > 0);
+            const hasAny =
+                combined.length > 0 ||
+                (await this.channelWindow.hasAnyPrograms(
+                    lookupKey,
+                    playlistSourceUrls
+                ));
+            if (requestId !== this.programRequestId) return;
+            this.currentChannelHasPrograms.next(hasAny);
+            this.currentChannelWindowLoading.next(false);
+        } catch (error) {
+            if (requestId !== this.programRequestId) return;
+            console.error('EPG guide programme lookup error:', error);
+            this.showErrorSnackbar();
+            this.epgAvailable.next(false);
+            this.currentChannelWindowLoading.next(false);
+        }
+    }
+
+    /** Raw provider-clock window for archive seek-bar programmes. */
+    getChannelProgramsForProviderWindow(
+        channelId: string,
+        fromMs: number,
+        toMs: number,
+        playlistSourceUrls: string[] = []
+    ): Promise<EpgProgram[]> {
+        if (!this.epgBridge.supportsGuide || !channelId.trim()) {
+            return Promise.resolve([]);
+        }
+        return this.channelWindow.programs(
+            channelId.trim(),
+            fromMs,
+            toMs,
+            playlistSourceUrls,
+            true
+        );
     }
 
     /**

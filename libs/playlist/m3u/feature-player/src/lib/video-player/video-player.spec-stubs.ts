@@ -22,10 +22,12 @@ import { LiveEpgPanelSummary } from '@iptvnator/ui/shared-portals';
 })
 export class StubEpgTimelineComponent {
     readonly programs = input<EpgProgram[]>([]);
+    readonly hasProgramsElsewhere = input(false);
     readonly offsetMinutes = input(0);
     readonly channelName = input('');
     readonly channelLogo = input('');
     readonly archivePlaybackAvailable = input(false);
+    readonly futurePlaybackAvailable = input(false);
     readonly archiveContextKey = input<string | null>(null);
     readonly archiveDays = input(0);
     readonly activeProgram = input<EpgProgram | null>(null);

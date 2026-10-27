@@ -83,6 +83,7 @@ export class EpgListViewComponent {
      * timeline's literal "Timeline" while in list mode. */
     readonly sourceLabel = input('Programme guide');
     readonly archivePlaybackAvailable = input(false);
+    readonly futurePlaybackAvailable = input(false);
     /** Source/channel identity captured by programme details, independent of playback. */
     readonly archiveDownloadAvailable = input(false);
     readonly archiveContextKey = input<string | null>(null);
@@ -91,6 +92,7 @@ export class EpgListViewComponent {
     readonly isLivePlayback = input(true);
     readonly loading = input(false);
     readonly emptyReason = input<EpgTimelineEmptyReason>('none');
+    readonly hasProgramsElsewhere = input(false);
     readonly selectedDate = input<string | null>(null);
     readonly collapsed = input(false);
     readonly summary = input<EpgTimelineSummary | null>(null);
@@ -134,6 +136,7 @@ export class EpgListViewComponent {
     readonly rows = computed<EpgListRow[]>(() =>
         buildEpgListRows(this.programs(), this.viewDayKey(), this.nowMs(), {
             archivePlaybackAvailable: this.archivePlaybackAvailable(),
+            futurePlaybackAvailable: this.futurePlaybackAvailable(),
             archiveDays: this.archiveDays(),
             activeProgram: this.activeProgram(),
             offsetMinutes: this.offsetMinutes(),
@@ -163,7 +166,9 @@ export class EpgListViewComponent {
             return reason;
         }
         if (this.programs().length === 0) {
-            return 'channel-unmapped';
+            return this.hasProgramsElsewhere()
+                ? 'empty-day'
+                : 'channel-unmapped';
         }
         if (
             !hasProgramsForDateKey(
@@ -231,6 +236,7 @@ export class EpgListViewComponent {
             programs: () => this.programs(),
             isViewToday: () => this.isViewToday(),
             channelName: () => this.channelName(),
+            contextKey: () => this.archiveContextKey(),
             scroll: this.scroll,
         });
     }
