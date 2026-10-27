@@ -746,6 +746,52 @@ describe('EmbeddedMpvPlayerComponent dock panels', () => {
         expect(setSubtitleTrack).toHaveBeenCalledWith(31);
     });
 
+    it('replaces an automatically selected descriptive subtitle with a readable track', async () => {
+        const setSubtitleTrack = jest
+            .spyOn(controller, 'setSubtitleTrack')
+            .mockResolvedValue(undefined);
+        const currentSession = controller.session();
+        if (!currentSession) {
+            throw new Error('Expected a ready embedded MPV session');
+        }
+        controller.session.set({
+            ...currentSession,
+            subtitleTracks: [
+                { id: 30, language: 'zxx', selected: true, defaultTrack: true },
+                { id: 31, language: 'eng', selected: false },
+            ],
+            selectedSubtitleTrackId: 30,
+        });
+        controller.sessionId.set('session-1');
+        fixture.componentInstance.showCaptions.set(true);
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        expect(setSubtitleTrack).toHaveBeenCalledWith(31);
+    });
+
+    it('leaves an external subtitle selected when Show subtitles is enabled', async () => {
+        const setSubtitleTrack = jest
+            .spyOn(controller, 'setSubtitleTrack')
+            .mockResolvedValue(undefined);
+        const currentSession = controller.session();
+        if (!currentSession) {
+            throw new Error('Expected a ready embedded MPV session');
+        }
+        controller.session.set({
+            ...currentSession,
+            externalSubtitleActive: true,
+            subtitleTracks: [{ id: 31, language: 'eng', selected: false }],
+            selectedSubtitleTrackId: null,
+        });
+        controller.sessionId.set('session-1');
+        fixture.componentInstance.showCaptions.set(true);
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        expect(setSubtitleTrack).not.toHaveBeenCalled();
+    });
+
     it('does not override an explicit subtitles-off choice', async () => {
         const setSubtitleTrack = jest
             .spyOn(controller, 'setSubtitleTrack')

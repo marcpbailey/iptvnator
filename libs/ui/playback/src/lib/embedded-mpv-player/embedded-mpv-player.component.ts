@@ -691,15 +691,22 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
 
         effect(() => {
             const enabled = this.showCaptions();
-            const sessionId = this.controller.sessionId();
-            const tracks = this.subtitleTracks();
-            if (!sessionId || !enabled || tracks.length === 0) {
+            const session = this.session();
+            const tracks = session?.subtitleTracks ?? [];
+            if (!session || !enabled || tracks.length === 0) {
                 return;
             }
             if (
                 this.subtitlePreference.current !== undefined ||
-                this.selectedSubtitleTrackId() !== null
+                this.sharedControls.externalSubtitlePending() ||
+                session.externalSubtitleActive
             ) {
+                return;
+            }
+            const selectedTrack = tracks.find(
+                (track) => track.id === session.selectedSubtitleTrackId
+            );
+            if (selectedTrack && selectedTrack.language !== 'zxx') {
                 return;
             }
             const track =
