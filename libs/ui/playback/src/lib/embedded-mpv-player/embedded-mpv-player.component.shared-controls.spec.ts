@@ -314,6 +314,33 @@ describe('EmbeddedMpvPlayerComponent shared controls host', () => {
         expect(component.controlsVisible()).toBe(false);
     });
 
+    it('keeps frame-copy controls visible while pinned and still hides them in preview', () => {
+        jest.useFakeTimers();
+        const { fixture } = render('frame-copy');
+        const controls = sharedControls(fixture);
+        expect(controls).not.toBeNull();
+        jest.advanceTimersByTime(2500);
+        fixture.detectChanges();
+        expect(controls?.controlsAreVisible()).toBe(false);
+
+        fixture.componentRef.setInput('keepControlsVisible', true);
+        fixture.detectChanges();
+        jest.advanceTimersByTime(2500);
+        fixture.detectChanges();
+        expect(controls?.controlsAreVisible()).toBe(true);
+
+        fixture.componentRef.setInput('showControls', false);
+        fixture.detectChanges();
+        expect(controls?.controlsAreVisible()).toBe(false);
+
+        fixture.componentRef.setInput('showControls', true);
+        fixture.componentRef.setInput('keepControlsVisible', false);
+        fixture.detectChanges();
+        jest.advanceTimersByTime(2500);
+        fixture.detectChanges();
+        expect(controls?.controlsAreVisible()).toBe(false);
+    });
+
     it('keeps native controls visible until the dedicated setting is turned off', () => {
         jest.useFakeTimers();
         const { fixture, component } = render('native');

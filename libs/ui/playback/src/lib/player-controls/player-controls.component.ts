@@ -77,6 +77,7 @@ export class PlayerControlsComponent implements OnDestroy {
      */
     readonly fullscreenTarget = input<HTMLElement | null>(null);
     readonly showControls = input(true);
+    readonly keepControlsVisible = input(false);
     readonly shortcutsEnabled = input(true);
     readonly mediaTitle = input<PlayerMediaTitle | null>(null);
     /** Chapters / programmes drawn as track segments; null draws one. */
@@ -94,7 +95,13 @@ export class PlayerControlsComponent implements OnDestroy {
     readonly layout = new ControlsLayout();
     /** Compact dock: narrow inline players and phone-sized viewports. */
     readonly isCompact = computed(() => this.layout.mode() === 'compact');
-    private readonly visibility = new ControlsVisibility(() => this.canHide());
+    private readonly visibility = new ControlsVisibility(
+        () =>
+            this.isPlaying() && !this.keepControlsVisible() &&
+            !this.chrome.engaged &&
+            !this.menus.anyOpen() &&
+            !this.state().statusMessage
+    );
     private readonly fullscreen = new ControlsFullscreen(
         () => this.fullscreenTarget() ?? this.playerSurface(),
         () => this.reveal()
@@ -211,6 +218,7 @@ export class PlayerControlsComponent implements OnDestroy {
         isFullscreen: this.isFullscreen,
         canFullscreenNative: () => this.fullscreen.canFullscreen(),
         showControls: this.showControls,
+        keepControlsVisible: this.keepControlsVisible,
         autoHideVisible: this.visibility.visible,
         anyMenuOpen: this.menus.anyOpen,
     });
@@ -301,6 +309,7 @@ export class PlayerControlsComponent implements OnDestroy {
         effect(() => {
             const state = this.state();
             const showControls = this.showControls();
+            this.keepControlsVisible();
             const capabilities = this.capabilities();
             untracked(() => {
                 if (!capabilities.seek || !state.canSeek) {
@@ -422,12 +431,4 @@ export class PlayerControlsComponent implements OnDestroy {
         this.visibility.reveal(options);
     }
 
-    private canHide(): boolean {
-        return (
-            this.isPlaying() &&
-            !this.chrome.engaged &&
-            !this.menus.anyOpen() &&
-            !this.state().statusMessage
-        );
-    }
 }
