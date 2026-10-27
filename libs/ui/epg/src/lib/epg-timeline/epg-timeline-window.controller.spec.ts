@@ -492,6 +492,20 @@ describe('EpgTimelineComponent ribbon windowing', () => {
         expect(renderedTitles()).toContain('Slot 96');
     });
 
+    it('keeps the rendered range with the scroll position when a day query updates', () => {
+        const schedule = mockSchedule();
+        fixture.componentRef.setInput('archiveContextKey', 'channel-1');
+        render(schedule);
+        scrollRibbonTo(blockLeftPx('Slot 230') - ribbonWidth / 2);
+        const left = ribbon().scrollLeft;
+        expect(renderedTitles()).toContain('Slot 230');
+
+        render(schedule.filter((_, index) => index !== 100));
+
+        expect(ribbon().scrollLeft).toBe(left);
+        expect(renderedTitles()).toContain('Slot 230');
+    });
+
     it('starts over around now when another channel loads', () => {
         render(mockSchedule());
         scrollRibbonTo(blockLeftPx('Slot 230'));
