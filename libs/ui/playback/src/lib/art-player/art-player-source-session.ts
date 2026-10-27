@@ -31,6 +31,7 @@ export interface ArtPlayerSourceSessionConfig {
     controlsAdapter: WebVideoControlsAdapter;
     isLive: () => boolean;
     showCaptions: () => boolean;
+    startPaused?: () => boolean;
     emitPlaybackIssue: (issue: PlaybackDiagnostic) => void;
     /** DRM config of the active channel, used by the DASH (`mpd`) engine. */
     getDrm?: () => ChannelDrm | undefined;
@@ -208,9 +209,11 @@ export class ArtPlayerSourceSession {
         this.bindControlsSource({ kind: 'mpegts' });
         engine.on(mpegts.Events.ERROR, this.mpegTsErrorListener);
         engine.load();
-        const playResult = engine.play();
-        if (playResult) {
-            void playResult.catch(() => undefined);
+        if (!this.config.startPaused?.()) {
+            const playResult = engine.play();
+            if (playResult) {
+                void playResult.catch(() => undefined);
+            }
         }
     }
 

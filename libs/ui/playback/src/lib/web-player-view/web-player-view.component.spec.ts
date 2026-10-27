@@ -793,6 +793,25 @@ describe('WebPlayerViewComponent', () => {
     );
 
     it.each([
+        [VideoPlayer.VideoJs, StubVjsPlayerComponent],
+        [VideoPlayer.Html5Player, StubHtmlVideoPlayerComponent],
+        [VideoPlayer.ArtPlayer, StubArtPlayerComponent],
+    ])(
+        'opens %s paused when restoring a remembered channel',
+        async (player, directive) => {
+            fixture.componentRef.setInput('playerOverride', player);
+            fixture.componentRef.setInput('startPaused', true);
+            fixture.detectChanges();
+            await fixture.whenStable();
+            fixture.detectChanges();
+
+            const instance = fixture.debugElement.query(By.directive(directive))
+                .componentInstance as { startPaused: () => boolean };
+            expect(instance.startPaused()).toBe(true);
+        }
+    );
+
+    it.each([
         {
             player: VideoPlayer.VideoJs,
             directive: StubVjsPlayerComponent,

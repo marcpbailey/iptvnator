@@ -2,7 +2,7 @@
     <video
         #videoPlayer
         id="video-player"
-        autoplay
+        [autoplay]="!startPaused()"
         [controls]="!sharedControls"
     ></video>
 

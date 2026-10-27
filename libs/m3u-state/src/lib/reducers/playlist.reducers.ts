@@ -68,6 +68,7 @@ export const playlistReducers = [
                 ? (action.playlist.playlist.items as Channel[])
                 : state.channels,
             channelsLoading: isActivePlaylist ? false : state.channelsLoading,
+            channelsLoaded: isActivePlaylist ? true : state.channelsLoaded,
             playlists: playlistsAdapter.updateOne(
                 {
                     id: action.playlistId,
@@ -114,6 +115,10 @@ export const playlistReducers = [
     on(PlaylistActions.setActivePlaylist, (state, action): PlaylistState => {
         return {
             ...state,
+            channelsLoaded:
+                state.playlists.selectedId === action.playlistId
+                    ? state.channelsLoaded
+                    : false,
             playlists: {
                 ...state.playlists,
                 selectedId: action.playlistId,

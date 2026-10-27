@@ -66,6 +66,7 @@ import {
     selectActivePlaybackUrl,
     selectActivePlaylist,
     selectChannels,
+    selectChannelsLoaded,
     selectChannelsLoading,
     selectCurrentEpgProgram,
     selectFavorites,
@@ -116,6 +117,7 @@ import { ChannelListLoadingStateComponent } from '@iptvnator/ui/components';
 import {
     DataService,
     ParentalLockService,
+    PlaybackResumeService,
     PlaylistsService,
     RecordingsService,
     RuntimeCapabilitiesService,
@@ -254,6 +256,7 @@ export class VideoPlayerComponent
     );
     private readonly tmdbEnrichment = inject(TmdbEnrichmentService);
     private readonly externalPlayback = inject(PORTAL_EXTERNAL_PLAYBACK);
+    private readonly playbackResumeService = inject(PlaybackResumeService);
     private readonly workspaceHeaderContext = inject(
         WorkspaceHeaderContextService
     );
@@ -277,6 +280,7 @@ export class VideoPlayerComponent
             : '';
     });
     readonly channels = this.store.selectSignal(selectChannels);
+    readonly channelsLoaded = this.store.selectSignal(selectChannelsLoaded);
     readonly channelsLoading = this.store.selectSignal(selectChannelsLoading);
     readonly activePlaylistRecentItems = computed(
         () => this.playlistContext.activePlaylist()?.recentlyViewed ?? []
@@ -760,6 +764,21 @@ export class VideoPlayerComponent
         computation: () => readStoredVolume(),
     });
 
+    private resumeConsumed = false;
+    private readonly isActivelyPlaying = signal(true);
+    private readonly resumeTargetStreamUrl = signal<string | null>(null);
+    readonly startPaused = computed(
+        () =>
+            this.resumeTargetStreamUrl() ===
+                this.embeddedPlayback()?.streamUrl &&
+            this.resumeTargetStreamUrl() !== null
+    );
+
+    onPlayingStateChanged(playing: boolean | undefined): void {
+        if (playing !== undefined) this.isActivelyPlaying.set(playing);
+        if (playing) this.resumeTargetStreamUrl.set(null);
+    }
+
     constructor() {
         this.guideSource.bind({
             channels: this.guideChannels,
@@ -789,6 +808,89 @@ export class VideoPlayerComponent
             }
             lastGuidePlaylistId = playlistId;
             untracked(() => this.closeGuide());
+        });
+
+        effect(() => {
+            const playlistId = this.activePlaylistId();
+            const channel = this.activeChannel();
+            const externalSession = this.externalPlayback.activeSession();
+            const usesExternalPlayer =
+                channel?.radio !== 'true' &&
+                !this.activeChannelIsDash() &&
+                this.isExternalPlayer(this.settingsStore.player());
+            const playing = usesExternalPlayer
+                ? isLiveExternalPlayerSession(externalSession) &&
+                  externalSession.status !== 'launching' &&
+                  externalSession.streamUrl === channel?.url
+                : this.isActivelyPlaying();
+            if (
+                playlistId &&
+                channel?.url &&
+                !isLikelyM3uVod(channel) &&
+                playing &&
+                !this.startPaused()
+            ) {
+                void this.playbackResumeService.recordPlaybackStarted(
+                    'm3u',
+                    playlistId,
+                    channel.url
+                );
+            } else {
+                void this.playbackResumeService.recordPlaybackStopped();
+            }
+        });
+
+        effect(() => {
+            const playlistId = this.activePlaylistId();
+            const channels = this.channels();
+            if (
+                !playlistId ||
+                !this.channelsLoaded() ||
+                this.channelsLoading() ||
+                this.resumeConsumed
+            )
+                return;
+            const url =
+                this.playbackResumeService.peekPendingResumeStreamUrl(
+                    playlistId
+                );
+            if (url === null) return;
+            const shouldAutoplay =
+                this.playbackResumeService.peekPendingResumeShouldAutoplay(
+                    playlistId
+                );
+            const fallbackPath =
+                this.playbackResumeService.peekPendingResumeFallbackPath(
+                    playlistId
+                );
+            const channel = channels.find((item) => item.url === url);
+            this.resumeConsumed = true;
+            this.playbackResumeService.clearPendingResume();
+            if (
+                !channel ||
+                isLikelyM3uVod(channel) ||
+                this.parentalLock.isM3uGroupLocked(
+                    playlistId,
+                    channel?.group?.title ?? ''
+                )
+            ) {
+                if (fallbackPath) void this.router.navigateByUrl(fallbackPath);
+                return;
+            }
+            if (!shouldAutoplay) this.resumeTargetStreamUrl.set(channel.url);
+            this.store.dispatch(
+                ChannelActions.setActiveChannel({
+                    channel,
+                    startPlayback: shouldAutoplay,
+                })
+            );
+        });
+
+        effect(() => {
+            const target = this.resumeTargetStreamUrl();
+            const active = this.embeddedPlayback()?.streamUrl;
+            if (target && active && active !== target)
+                this.resumeTargetStreamUrl.set(null);
         });
 
         // React to settings changes
@@ -1097,6 +1199,7 @@ export class VideoPlayerComponent
         this.unsubscribeRemoteChannelChange?.();
         this.unsubscribeRemoteCommand?.();
         this.statusSubscription?.unsubscribe();
+        void this.playbackResumeService.recordPlaybackStopped();
         // Leaving the player would otherwise keep the last channel advertised
         // as live on the remote forever.
         this.remoteControlBridge?.updateRemoteControlStatus?.(

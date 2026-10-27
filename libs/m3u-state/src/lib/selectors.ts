@@ -37,6 +37,11 @@ export const selectChannelsLoading = createSelector(
     fromPlaylistState.selectChannelsLoadingReducer
 );
 
+export const selectChannelsLoaded = createSelector(
+    selectPlaylistState,
+    fromPlaylistState.selectChannelsLoadedReducer
+);
+
 export const selectChannels = createSelector(
     selectPlaylistState,
     fromPlaylistState.selectChannelsReducer

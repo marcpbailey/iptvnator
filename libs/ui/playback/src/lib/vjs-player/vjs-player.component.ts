@@ -76,6 +76,7 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
     readonly options = input.required<VideoPlayerOptions>();
     readonly volume = input(1);
     readonly startTime = input(0);
+    readonly startPaused = input(false);
     readonly seriesNavigation = input<SeriesPlaybackNavigation | null>(null);
     readonly interactionEnabled = input(true);
     readonly showCaptions = input(false);
@@ -110,6 +111,7 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
     private readonly mpegTsSession = new VjsMpegTsSession({
         player: () => this.player,
         isLive: () => this.options().isLive !== false,
+        startPaused: () => this.startPaused(),
         emitPlaybackIssue: (issue) => this.playbackIssue.emit(issue),
     });
     private readonly resetCoordinator = new VjsPlayerResetCoordinator({
@@ -140,7 +142,7 @@ export class VjsPlayerComponent implements OnInit, OnChanges, OnDestroy {
         }
 
         const vjsOptions = createVjsPlayerOptions(
-            this.options(),
+            { ...this.options(), autoplay: !this.startPaused() },
             this.mpegTsSession.isSupportedSource(this.desiredSource?.src),
             this.sharedControls
         );

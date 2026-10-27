@@ -237,6 +237,24 @@ describe('ArtPlayerSourceSession', () => {
         });
     });
 
+    it('loads a remembered MPEG-TS channel without starting it', () => {
+        const { session, player, video } = createSession({
+            sharedControls: true,
+            startPaused: true,
+        });
+        session.attach(player);
+
+        session.customType['ts']?.call(
+            player,
+            video,
+            'https://example.test/live.ts',
+            player
+        );
+
+        expect(mpegTsInstances[0].load).toHaveBeenCalledTimes(1);
+        expect(mpegTsInstances[0].play).not.toHaveBeenCalled();
+    });
+
     it('reports HLS and MPEG-TS diagnostics from the session-local source', () => {
         const emitted: PlaybackDiagnostic[] = [];
         const { session, player, video } = createSession({

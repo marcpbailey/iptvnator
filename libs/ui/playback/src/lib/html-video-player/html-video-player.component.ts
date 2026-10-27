@@ -81,6 +81,7 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
     @Input() startTime = 0;
     @Input() seriesNavigation: SeriesPlaybackNavigation | null = null;
     readonly isLive = input(true);
+    readonly startPaused = input(false);
     readonly interactionEnabled = input(true);
     readonly showCaptions = input(false);
     readonly mediaTitle = input<PlayerMediaTitle | null>(null);
@@ -231,7 +232,7 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
                     // underneath the diagnostic banner.
                     this.videoPlayer.nativeElement.load();
                 } else {
-                    this.handlePlayOperation();
+                    if (!this.startPaused()) this.handlePlayOperation();
                 }
             } else if (
                 sourceKind === PlaybackSourceKind.MpegTs &&
@@ -265,7 +266,7 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
                     }
                 );
                 this.mpegtsPlayer.load();
-                this.handlePlayOperation();
+                if (!this.startPaused()) this.handlePlayOperation();
             } else if (
                 sourceKind !== PlaybackSourceKind.Native &&
                 Hls &&
@@ -289,7 +290,7 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
                 hls.attachMedia(this.videoPlayer.nativeElement);
                 this.bindControlsSource({ kind: 'hls', hls });
                 hls.loadSource(url);
-                this.handlePlayOperation();
+                if (!this.startPaused()) this.handlePlayOperation();
             } else {
                 debugHtmlPlayer('Using native video player');
                 setNativeVideoSource(
@@ -299,7 +300,7 @@ export class HtmlVideoPlayerComponent implements OnInit, OnChanges, OnDestroy {
                 );
                 this.bindControlsSource({ kind: 'native' });
                 this.videoPlayer.nativeElement.load();
-                this.handlePlayOperation();
+                if (!this.startPaused()) this.handlePlayOperation();
             }
         }
     }

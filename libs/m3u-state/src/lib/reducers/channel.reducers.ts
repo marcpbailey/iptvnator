@@ -34,6 +34,7 @@ export const channelReducers = [
         return {
             ...state,
             channelsLoading: false,
+            channelsLoaded: true,
             channels: action.channels,
         };
     }),

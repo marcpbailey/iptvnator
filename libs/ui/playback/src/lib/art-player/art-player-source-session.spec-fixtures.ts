@@ -96,8 +96,7 @@ export class MockMpegTsPlayer {
 
 export const createMpegTsPlayer = jest.fn(() => new MockMpegTsPlayer());
 
-const actualHlsModule =
-    jest.requireActual<typeof import('hls.js')>('hls.js');
+const actualHlsModule = jest.requireActual<typeof import('hls.js')>('hls.js');
 
 jest.unstable_mockModule('hls.js', () => ({
     ...actualHlsModule,
@@ -120,9 +119,8 @@ let sessionConstructor:
 
 /** Loads the session module after the engine mocks above are registered. */
 export async function initArtPlayerSourceSessionModule(): Promise<void> {
-    ({ ArtPlayerSourceSession: sessionConstructor } = await import(
-        './art-player-source-session'
-    ));
+    ({ ArtPlayerSourceSession: sessionConstructor } =
+        await import('./art-player-source-session'));
 }
 
 export function resetArtPlayerSourceFixtures(): void {
@@ -137,6 +135,7 @@ export function resetArtPlayerSourceFixtures(): void {
 export function createSession({
     sharedControls,
     isLive = true,
+    startPaused = false,
     showCaptions = () => false,
     emitPlaybackIssue = () => undefined,
     getDrm,
@@ -144,6 +143,7 @@ export function createSession({
 }: {
     sharedControls: boolean;
     isLive?: boolean;
+    startPaused?: boolean;
     showCaptions?: () => boolean;
     emitPlaybackIssue?: (issue: PlaybackDiagnostic) => void;
     getDrm?: () => ChannelDrm | undefined;
@@ -169,6 +169,7 @@ export function createSession({
             sharedControls,
             controlsAdapter: adapter,
             isLive: () => isLive,
+            startPaused: () => startPaused,
             showCaptions,
             emitPlaybackIssue,
             getDrm,

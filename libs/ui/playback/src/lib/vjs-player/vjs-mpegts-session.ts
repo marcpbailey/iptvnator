@@ -16,6 +16,7 @@ interface VjsDurationPlayer {
 export interface VjsMpegTsSessionConfig {
     player: () => VjsDurationPlayer;
     isLive: () => boolean;
+    startPaused?: () => boolean;
     emitPlaybackIssue: (issue: PlaybackDiagnostic) => void;
 }
 
@@ -78,9 +79,11 @@ export class VjsMpegTsSession {
         }
         engine.on(mpegts.Events.ERROR, this.errorListener);
         engine.load();
-        const playResult = engine.play();
-        if (playResult) {
-            void playResult.catch(() => undefined);
+        if (!this.config.startPaused?.()) {
+            const playResult = engine.play();
+            if (playResult) {
+                void playResult.catch(() => undefined);
+            }
         }
     }
 

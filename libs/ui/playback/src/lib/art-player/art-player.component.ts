@@ -61,6 +61,7 @@ export class ArtPlayerComponent implements OnInit, OnDestroy, OnChanges {
     readonly startTime = input(0);
     readonly seriesNavigation = input<SeriesPlaybackNavigation | null>(null);
     readonly isLive = input(true);
+    readonly startPaused = input(false);
     readonly interactionEnabled = input(true);
     readonly mediaTitle = input<PlayerMediaTitle | null>(null);
     readonly upNext = input<PlayerUpNextItem | null>(null);
@@ -161,6 +162,7 @@ export class ArtPlayerComponent implements OnInit, OnDestroy, OnChanges {
             controlsAdapter: this.controlsAdapter,
             isLive: () => this.isLive(),
             showCaptions: () => this.showCaptions(),
+            startPaused: () => this.startPaused(),
             emitPlaybackIssue: (issue) => this.playbackIssue.emit(issue),
             getDrm: () => this.channel().drm,
         });
@@ -175,7 +177,7 @@ export class ArtPlayerComponent implements OnInit, OnDestroy, OnChanges {
                 this.isLive(),
                 channel.url
             ),
-            autoplay: true,
+            autoplay: !this.startPaused(),
             type: getArtPlayerVideoType(channel.url),
             playsInline: true,
             backdrop: true,

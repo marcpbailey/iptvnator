@@ -11,7 +11,7 @@ export function createVjsPlayerOptions(
 ): VideoPlayerOptions {
     const baseOptions = isMpegTs
         ? { ...options, sources: [], autoplay: false }
-        : { ...options, autoplay: true };
+        : { ...options, autoplay: options.autoplay !== false };
     if (!sharedControls) {
         // Controls must be enabled through the constructor, not a `[controls]`
         // template binding: `player.reset()` (raw MPEG-TS/live path) replaces
