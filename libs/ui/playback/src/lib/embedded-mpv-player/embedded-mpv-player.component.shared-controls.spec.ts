@@ -340,6 +340,50 @@ describe('EmbeddedMpvPlayerComponent shared controls host', () => {
         expect(component.controlsVisible()).toBe(false);
     });
 
+    it('keeps frame-copy controls visible while pinned and still hides them in preview', () => {
+        jest.useFakeTimers();
+        const { fixture } = render('frame-copy');
+        const controls = sharedControls(fixture);
+        expect(controls).not.toBeNull();
+        jest.advanceTimersByTime(2500);
+        fixture.detectChanges();
+        expect(controls?.controlsAreVisible()).toBe(false);
+
+        fixture.componentRef.setInput('keepControlsVisible', true);
+        fixture.detectChanges();
+        jest.advanceTimersByTime(2500);
+        fixture.detectChanges();
+        expect(controls?.controlsAreVisible()).toBe(true);
+
+        fixture.componentRef.setInput('showControls', false);
+        fixture.detectChanges();
+        expect(controls?.controlsAreVisible()).toBe(false);
+
+        fixture.componentRef.setInput('showControls', true);
+        fixture.componentRef.setInput('keepControlsVisible', false);
+        fixture.detectChanges();
+        jest.advanceTimersByTime(2500);
+        fixture.detectChanges();
+        expect(controls?.controlsAreVisible()).toBe(false);
+    });
+
+    it('keeps native controls visible until the dedicated setting is turned off', () => {
+        jest.useFakeTimers();
+        const { fixture, component } = render('native');
+        component.controlsVisible.set(false);
+        fixture.componentRef.setInput('keepControlsVisible', true);
+        fixture.detectChanges();
+
+        expect(component.controlsAreVisible()).toBe(true);
+        jest.advanceTimersByTime(2500);
+        expect(component.controlsAreVisible()).toBe(true);
+
+        fixture.componentRef.setInput('keepControlsVisible', false);
+        fixture.detectChanges();
+        jest.advanceTimersByTime(2500);
+        expect(component.controlsAreVisible()).toBe(false);
+    });
+
     it('syncs fullscreen state when shared controls attach after entering fullscreen', () => {
         const { fixture, controller } = render('native');
         fullscreenElement = root(fixture);

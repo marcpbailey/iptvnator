@@ -101,6 +101,7 @@ export const DEFAULT_SETTINGS = {
     startupWindowMode: 'normal',
     updateChannel: 'stable',
     showExternalPlaybackBar: true,
+    embeddedMpvKeepControlsVisible: false,
     stripCountryPrefix: false,
     theme: Theme.SystemTheme,
     mpvPlayerPath: '',

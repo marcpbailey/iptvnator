@@ -102,6 +102,7 @@ export class StubEmbeddedMpvPlayerComponent {
     readonly playback = input.required<unknown>();
     readonly showControls = input(true);
     readonly showCaptions = input(false);
+    readonly keepControlsVisible = input(false);
     readonly fullscreenTarget = input<HTMLElement | null>(null);
     readonly mediaTitle = input<unknown>(null);
     readonly upNext = input<unknown>(null);

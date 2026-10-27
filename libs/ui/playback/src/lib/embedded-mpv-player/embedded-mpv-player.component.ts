@@ -96,6 +96,7 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
     readonly showControls = input(true);
     /** Selects a readable default only until the viewer makes a choice. */
     readonly showCaptions = input(false);
+    readonly keepControlsVisible = input(false);
     readonly recordingFolder = input('');
     readonly recordingMetadata = input<RecordingStartMetadata | null>(null);
     readonly seriesNavigation = input<SeriesPlaybackNavigation | null>(null);
@@ -321,7 +322,8 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
         () =>
             this.showControls() &&
             this.isSupported() &&
-            (this.controlsVisible() ||
+            (this.keepControlsVisible() ||
+                this.controlsVisible() ||
                 this.isLoading() ||
                 this.isPaused() ||
                 this.menus.anyOpen() ||
@@ -405,6 +407,7 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
             playerRoot: () => this.playerRoot()?.nativeElement ?? null,
             menus: this.menus,
             controlsVisible: this.controlsVisible,
+            keepControlsVisible: this.keepControlsVisible,
             isLoading: this.isLoading,
             isErrored: this.isErrored,
             isStalled: this.stalled,
@@ -414,6 +417,18 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
             toggleFullscreen: () => this.toggleFullscreen(),
         });
         this.legacyInteractions.attach();
+
+        effect(() => {
+            const keepVisible = this.keepControlsVisible();
+            untracked(() => {
+                if (keepVisible) {
+                    this.legacyInteractions.revealControls(false);
+                    this.legacyInteractions.scheduleControlsHide();
+                } else {
+                    this.legacyInteractions.scheduleControlsHide();
+                }
+            });
+        });
 
         this.dockPanels = new EmbeddedMpvDockPanelState({
             menus: this.menus,

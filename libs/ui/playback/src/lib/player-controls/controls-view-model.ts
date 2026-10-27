@@ -12,6 +12,7 @@ export interface ControlsViewModelDeps {
     isFullscreen: Signal<boolean>;
     canFullscreenNative: () => boolean;
     showControls: Signal<boolean>;
+    keepControlsVisible: Signal<boolean>;
     /** Whether the auto-hide layer currently wants the bar visible. */
     autoHideVisible: Signal<boolean>;
     anyMenuOpen: Signal<boolean>;
@@ -88,6 +89,7 @@ export function createControlsViewModel(deps: ControlsViewModelDeps) {
             return false;
         }
         return (
+            deps.keepControlsVisible() ||
             deps.autoHideVisible() ||
             isLoading() ||
             isPaused() ||
