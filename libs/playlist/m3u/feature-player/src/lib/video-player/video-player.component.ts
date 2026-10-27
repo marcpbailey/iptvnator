@@ -1,4 +1,5 @@
 import { AsyncPipe, CommonModule } from '@angular/common';
+import { addDays, format } from 'date-fns';
 import {
     Component,
     ElementRef,
@@ -49,6 +50,7 @@ import {
     EpgTimelineComponent,
     EpgTimelineEmptyReason,
     getTodayEpgDateKey,
+    parseEpgDateKey,
     persistEpgGuideDockCollapsed,
     restoreEpgGuideDockCollapsed,
     shiftEpgDateKey,
@@ -417,16 +419,25 @@ export class VideoPlayerComponent
             isLikelyM3uMovie(channel)
         );
     }
-    /** Full multi-day programme window for the active channel (timeline). */
+    /** Selected day and current day programmes for the active channel. */
     readonly epgPrograms = toSignal(this.epgService.currentEpgPrograms$, {
         initialValue: [] as EpgProgram[],
     });
+    readonly hasProgramsElsewhere = toSignal(
+        this.epgService.currentChannelHasPrograms$,
+        { initialValue: false }
+    );
+    readonly epgWindowLoading = toSignal(
+        this.epgService.currentChannelWindowLoading$,
+        { initialValue: false }
+    );
+    private readonly catchupPrograms = signal<EpgProgram[] | null>(null);
     /** Catch-up programmes from `utc` up to `lutc` as seek-bar segments. */
     readonly catchupTimelineSegments = computed(() => {
         const playbackUrl = this.activePlaybackUrl();
         return playbackUrl
             ? buildCatchupTimelineSegments(
-                  this.epgPrograms(),
+                  this.catchupPrograms() ?? this.epgPrograms(),
                   this.activeEpgProgramOrNull(),
                   getM3uCatchupWindowEndSeconds(playbackUrl) ?? undefined
               )
@@ -567,6 +578,9 @@ export class VideoPlayerComponent
         restoreLiveEpgPanelState()
     );
     readonly selectedLiveEpgDate = signal(getTodayEpgDateKey());
+    private readonly todayEpgDate = computed(() =>
+        format(new Date(this.epgNowMs()), 'yyyy-MM-dd')
+    );
     /** Live EPG panel layout chosen in settings; hosts swap timeline ↔ list. */
     readonly epgViewMode = this.settingsStore.resolvedEpgViewMode;
     readonly epgOffsetMinutes = this.settingsStore.resolvedEpgOffsetMinutes;
@@ -638,11 +652,7 @@ export class VideoPlayerComponent
         };
     });
 
-    /**
-     * Stop enrichment: report every program overlapping the recorded window
-     * from the in-memory multi-day schedule (a recording can span a program
-     * boundary). Fire-and-forget — a failed update leaves the start snapshot.
-     */
+    /** Load the recorded interval for stop enrichment, independent of the viewed day. */
     onRecordingStopped(event: RecordingStoppedEvent): void {
         // A channel switch auto-stops the recording, and by now this host
         // already describes the new channel — enriching then would attach the
@@ -662,16 +672,45 @@ export class VideoPlayerComponent
         ) {
             return;
         }
-        const programs = filterRecordingProgramsOverlap(
-            this.epgPrograms().map(toRecordingProgramSnapshot),
-            event.startedAt,
-            event.endedAt,
-            this.epgOffsetMinutes()
-        );
-        if (programs.length === 0) {
+        const channelId =
+            event.epgChannelId || this.recordingMetadata()?.epgChannelId;
+        const startMs = Date.parse(event.startedAt ?? '');
+        const endMs = Date.parse(event.endedAt);
+        if (
+            !channelId ||
+            !Number.isFinite(startMs) ||
+            !Number.isFinite(endMs) ||
+            endMs <= startMs
+        ) {
             return;
         }
-        void this.recordingsService.updatePrograms(event.targetPath, programs);
+        const offsetMinutes = this.epgOffsetMinutes();
+        const sourceUrls = this.activePlaylistMeta()?.epgUrls ?? [];
+        void this.epgService
+            .getChannelProgramsForProviderWindow(
+                channelId,
+                epgProviderClockMs(startMs, offsetMinutes),
+                epgProviderClockMs(endMs, offsetMinutes),
+                sourceUrls
+            )
+            .then((epgPrograms) => {
+                const programs = filterRecordingProgramsOverlap(
+                    epgPrograms.map(toRecordingProgramSnapshot),
+                    event.startedAt,
+                    event.endedAt,
+                    offsetMinutes
+                );
+                if (programs.length > 0) {
+                    return this.recordingsService.updatePrograms(
+                        event.targetPath,
+                        programs
+                    );
+                }
+                return undefined;
+            })
+            .catch((error: unknown) => {
+                console.error('EPG recording lookup error:', error);
+            });
     }
     /**
      * Without a single configured XMLTV source the whole playlist has no EPG,
@@ -683,7 +722,7 @@ export class VideoPlayerComponent
      * playlist-scoped `url-tvg` source either.
      */
     readonly liveEpgEmptyReason = computed<EpgTimelineEmptyReason>(() => {
-        if (this.epgPrograms().length > 0) {
+        if (this.epgPrograms().length > 0 || this.hasProgramsElsewhere()) {
             return 'none';
         }
 
@@ -805,6 +844,79 @@ export class VideoPlayerComponent
                 30_000
             );
             onCleanup(() => clearInterval(intervalId));
+        });
+
+        // Query the displayed local day, including programmes across midnight.
+        // Re-read when the channel, day, source set or display offset changes.
+        effect(() => {
+            const channel = this.activeChannel();
+            const dayStart = parseEpgDateKey(this.selectedLiveEpgDate());
+            const dayEnd = addDays(dayStart, 1);
+            const todayKey = this.todayEpgDate();
+            const todayStart = parseEpgDateKey(todayKey);
+            const sourceUrls = this.activePlaylistMeta()?.epgUrls ?? [];
+            this.settingsStore.epgUrl?.();
+            this.epgService.sourceRevision();
+            this.epgOffsetMinutes();
+
+            if (!this.supportsEpg) {
+                return;
+            }
+            const channelId =
+                channel && channel.radio !== 'true'
+                    ? resolveChannelEpgLookupKey(channel)
+                    : '';
+            void this.epgService.loadChannelProgramsForWindow(
+                channelId ?? '',
+                dayStart.getTime(),
+                dayEnd.getTime(),
+                sourceUrls,
+                todayKey === this.selectedLiveEpgDate()
+                    ? undefined
+                    : {
+                          fromMs: todayStart.getTime(),
+                          toMs: addDays(todayStart, 1).getTime(),
+                      }
+            );
+        });
+
+        // Archive playback may span more days than the mini-guide is showing.
+        effect((onCleanup) => {
+            const channel = this.activeChannel();
+            const activeProgram = this.activeEpgProgramOrNull();
+            const windowEndSeconds = getM3uCatchupWindowEndSeconds(
+                this.activePlaybackUrl()
+            );
+            const sourceUrls = this.activePlaylistMeta()?.epgUrls ?? [];
+            this.epgService.sourceRevision();
+            const fromMs = Date.parse(activeProgram?.start ?? '');
+            const toMs = (windowEndSeconds ?? 0) * 1000;
+            const channelId = channel
+                ? resolveChannelEpgLookupKey(channel)
+                : '';
+            this.catchupPrograms.set(null);
+            if (!channelId || !Number.isFinite(fromMs) || toMs <= fromMs) {
+                return;
+            }
+
+            let current = true;
+            void this.epgService
+                .getChannelProgramsForProviderWindow(
+                    channelId,
+                    fromMs,
+                    toMs,
+                    sourceUrls
+                )
+                .then((programs) => {
+                    if (current) this.catchupPrograms.set(programs);
+                })
+                .catch((error: unknown) => {
+                    if (current)
+                        console.error('EPG archive lookup error:', error);
+                });
+            onCleanup(() => {
+                current = false;
+            });
         });
 
         // Mirror the legacy uncontrolled epg-list store side effects so the

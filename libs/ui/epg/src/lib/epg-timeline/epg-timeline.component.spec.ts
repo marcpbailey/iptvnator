@@ -88,6 +88,16 @@ describe('EpgTimelineComponent', () => {
         expect(component.emptyStateReason()).toBe('channel-unmapped');
     });
 
+    it('keeps day navigation when coverage exists outside the loaded window', () => {
+        setInputs({ programs: [], hasProgramsElsewhere: true });
+        expect(component.renderState()).toBe('empty-day');
+        expect(component.showDateStepper()).toBe(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).not.toContain(
+            'EPG.TIMELINE.JUMP_NEAREST'
+        );
+    });
+
     it('honours an explicit empty reason from the host', () => {
         setInputs({ programs: [], emptyReason: 'provider-no-epg' });
         expect(component.renderState()).toBe('provider-no-epg');
@@ -120,17 +130,21 @@ describe('EpgTimelineComponent', () => {
     });
 
     it('shows the ribbon controls (Now + zoom) only while a ribbon renders', () => {
+        const hasRibbonControls = () => {
+            fixture.detectChanges();
+            return !!fixture.nativeElement.querySelector('.epg-timeline__jump');
+        };
         setInputs({ programs: [programAt(0, 120, 'Now')] });
-        expect(component.showRibbonControls()).toBe(true);
+        expect(hasRibbonControls()).toBe(true);
 
         setInputs({ programs: [programAt(3 * 1440, 60)] }); // empty-day
-        expect(component.showRibbonControls()).toBe(false);
+        expect(hasRibbonControls()).toBe(false);
 
         setInputs({ programs: [] }); // channel-unmapped
-        expect(component.showRibbonControls()).toBe(false);
+        expect(hasRibbonControls()).toBe(false);
 
         setInputs({ programs: [programAt(0, 120)], loading: true });
-        expect(component.showRibbonControls()).toBe(false);
+        expect(hasRibbonControls()).toBe(false);
     });
 
     it('shows the date stepper for ribbon + empty-day, hides it with no EPG anywhere', () => {
@@ -177,6 +191,26 @@ describe('EpgTimelineComponent', () => {
         component.programActivated.subscribe((e) => events.push(e.type));
 
         component.onBlockClick(past as TimelineBlock);
+        expect(events).toEqual(['timeshift']);
+    });
+
+    it('plays a future block only when the host offers future playback', () => {
+        setInputs({
+            programs: [programAt(60, 5, 'Next clip')],
+            archivePlaybackAvailable: true,
+            archiveDays: 7,
+        });
+        const future = component.blocks().find((b) => b.when === 'future');
+        expect(future).toBeDefined();
+        const events: string[] = [];
+        component.programActivated.subscribe((event) => events.push(event.type));
+
+        component.onBlockClick(future as TimelineBlock);
+        expect(events).toEqual([]);
+
+        setInputs({ futurePlaybackAvailable: true });
+        expect(component.canCatchUp(future as TimelineBlock)).toBe(true);
+        component.onBlockClick(future as TimelineBlock);
         expect(events).toEqual(['timeshift']);
     });
 
@@ -336,7 +370,7 @@ describe('EpgTimelineComponent', () => {
         expect(component.zoomLevel()).toBe('hours');
         component.cycleZoom();
         expect(component.zoomLevel()).toBe('detail');
-        expect(component.scale()).toBe(3.4);
+        expect(component.scale()).toBe(13.6);
     });
 
     function wheel(init: WheelEventInit): WheelEvent {

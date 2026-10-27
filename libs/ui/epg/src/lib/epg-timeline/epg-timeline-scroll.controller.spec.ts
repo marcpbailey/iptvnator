@@ -133,7 +133,7 @@ describe('TimelineScrollController', () => {
                         nowMs
                     ),
                 nowMs: () => nowMs,
-                viewDayKey: () => 'today',
+                viewDayKey: () => getTodayEpgDateKey(),
                 commitDay: commitDaySpy,
                 hasProgramsForDay: (dayKey) =>
                     hasProgramsForDateKey(programs, dayKey),
@@ -170,6 +170,109 @@ describe('TimelineScrollController', () => {
             expect(scrollSpy).toHaveBeenCalledTimes(1);
         });
 
+        it('does not reset the selected day when a stable channel receives another day', () => {
+            const scroller = {} as HTMLElement;
+            const today = [programAt(0, 120, 'Today')];
+            programs = today;
+            controller.maybeAutoFocus(scroller, today, 'playlist:channel');
+            const newDay = [...today, programAt(1440, 60, 'Tomorrow')];
+            programs = newDay;
+            controller.maybeAutoFocus(scroller, newDay, 'playlist:channel');
+            expect(commitDaySpy).toHaveBeenCalledTimes(1);
+            expect(scrollSpy).toHaveBeenCalledTimes(1);
+        });
+
+        it('keeps the viewed time when an earlier programme moves the axis origin', () => {
+            let axisStartMs = Date.UTC(2026, 8, 6);
+            const scroller = {
+                scrollLeft: 320,
+                clientWidth: 600,
+                scrollTo: jest.fn(({ left }: { left: number }) => {
+                    scroller.scrollLeft = left;
+                }),
+            } as unknown as HTMLElement;
+            const keepTime = new TimelineScrollController({
+                ribbon: () => scroller,
+                scale: () => 1,
+                axis: () => ({
+                    startMs: axisStartMs,
+                    endMs: axisStartMs + 86_400_000,
+                }),
+                blocks: () => [],
+                nowMs: () => axisStartMs + 60_000,
+                viewDayKey: () => getTodayEpgDateKey(),
+                commitDay: jest.fn(),
+                hasProgramsForDay: () => true,
+            });
+            const frame = jest
+                .spyOn(window, 'requestAnimationFrame')
+                .mockImplementation((callback) => {
+                    callback(0);
+                    return 1;
+                });
+            try {
+                const p = [programAt(0, 60)];
+                keepTime.maybeAutoFocus(scroller, p, 'playlist:channel');
+                scroller.scrollLeft = 320;
+                keepTime.onRibbonScroll();
+                axisStartMs -= 86_400_000;
+
+                keepTime.maybeAutoFocus(scroller, p, 'playlist:channel');
+
+                expect(scroller.scrollLeft).toBe(320 + 1440);
+                expect(scroller.scrollTo).toHaveBeenLastCalledWith({
+                    left: 320 + 1440,
+                    behavior: 'auto',
+                });
+            } finally {
+                frame.mockRestore();
+            }
+        });
+
+        it('restores the saved time after a shorter track clamps scrollLeft', () => {
+            let axisStartMs = Date.UTC(2026, 8, 6);
+            const scroller = {
+                scrollLeft: 0,
+                clientWidth: 600,
+                scrollTo: jest.fn(({ left }: { left: number }) => {
+                    scroller.scrollLeft = left;
+                }),
+            } as unknown as HTMLElement;
+            const keepTime = new TimelineScrollController({
+                ribbon: () => scroller,
+                scale: () => 1,
+                axis: () => ({
+                    startMs: axisStartMs,
+                    endMs: axisStartMs + 5 * 86_400_000,
+                }),
+                blocks: () => [],
+                nowMs: () => axisStartMs + 60_000,
+                viewDayKey: () => getTodayEpgDateKey(),
+                commitDay: jest.fn(),
+                hasProgramsForDay: () => true,
+            });
+            const frame = jest
+                .spyOn(window, 'requestAnimationFrame')
+                .mockImplementation((callback) => {
+                    callback(0);
+                    return 1;
+                });
+            try {
+                const p = [programAt(0, 60)];
+                keepTime.maybeAutoFocus(scroller, p, 'playlist:channel');
+                scroller.scrollLeft = 2880;
+                keepTime.maybeAutoFocus(scroller, p, 'playlist:channel');
+                axisStartMs += 86_400_000;
+                scroller.scrollLeft = 0;
+
+                keepTime.maybeAutoFocus(scroller, p, 'playlist:channel');
+
+                expect(scroller.scrollLeft).toBe(1440);
+            } finally {
+                frame.mockRestore();
+            }
+        });
+
         it('restores position when the same channel ribbon remounts (collapse then expand)', () => {
             // Collapse → expand recreates the ribbon as a *new* element at
             // scrollLeft 0, so re-centre the viewed programme — but WITHOUT
@@ -197,6 +300,32 @@ describe('TimelineScrollController', () => {
             focus({} as HTMLElement, p);
             focus({} as HTMLElement, p); // remount → still no focus/snap
             expect(scrollSpy).not.toHaveBeenCalled();
+            expect(commitDaySpy).not.toHaveBeenCalled();
+        });
+
+        it('restores a selected day when its asynchronous programmes mount', () => {
+            const p = [programAt(3 * 1440, 60)];
+            const selectedDay = new Date(p[0].start);
+            const dayKey = `${selectedDay.getFullYear()}-${String(selectedDay.getMonth() + 1).padStart(2, '0')}-${String(selectedDay.getDate()).padStart(2, '0')}`;
+            const nowMs = Date.now();
+            const selectedDayController = new TimelineScrollController({
+                ribbon: () => undefined,
+                scale: () => 1,
+                axis: () => buildTimelineAxis(p, nowMs),
+                blocks: () =>
+                    buildTimelineBlocks(p, buildTimelineAxis(p, nowMs), nowMs),
+                nowMs: () => nowMs,
+                viewDayKey: () => dayKey,
+                commitDay: commitDaySpy,
+                hasProgramsForDay: (key) => hasProgramsForDateKey(p, key),
+            });
+            const restore = jest
+                .spyOn(selectedDayController, 'scrollToDateKey')
+                .mockImplementation(() => undefined);
+
+            selectedDayController.maybeAutoFocus({} as HTMLElement, p);
+
+            expect(restore).toHaveBeenCalledWith(dayKey, 0.5, false);
             expect(commitDaySpy).not.toHaveBeenCalled();
         });
 

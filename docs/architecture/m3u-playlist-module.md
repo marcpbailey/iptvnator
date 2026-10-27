@@ -736,14 +736,36 @@ exists (`SettingsFormFacade.supportsEpgDisplay`, XMLTV or a portal's own),
 including the browser PWA, while the page's XMLTV rows (sources, Xtream
 preference, clear data) need the import and data-management bridges.
 
+The M3U player's single-channel panel requests the selected local day through
+the guide window IPC. The window includes programmes crossing midnight and is
+converted to the provider clock using the display offset. It queries the
+playlist's enabled EPG URLs first, then Settings-managed global URLs when that
+day has no programme in the playlist sources. With neither source configured,
+it uses the existing unscoped fallback. A separate current-day read keeps the
+live programme available while another day is selected. Channel, day, source
+and offset changes issue a new request; an older response cannot replace it.
+The live programme stays available while another day loads for the same
+channel and source scope. New channels and source scopes show a loading state.
+Source lists longer than the guide IPC's per-request limit are read in batches
+and combined before trying the global fallback.
+When both loaded days are empty, a source-scoped coverage check distinguishes
+an empty day from a channel with no guide data, keeping date navigation
+available. Archive playback requests its full provider-clock range separately
+for the seek bar, so browsing the mini-guide does not remove intervening titles.
+Recording stop enrichment likewise reads the recorded interval, independent of
+the viewed day. An empty selected day keeps the date stepper when guide data
+exists elsewhere; the nearest-day action appears only when a loaded programme
+supplies a destination.
+The legacy `getChannelPrograms` IPC remains available to other callers.
+
 ### EPG display offset
 
 EPG display times also support a global **`Settings.epgOffsetMinutes`**
 correction (Settings → EPG → _EPG time offset_; whole minutes, clamped to ±720,
 default 0) for guides whose provider labels programme times with the wrong
 timezone. It is **display-only**: parsed XMLTV values, SQLite rows, catch-up
-URLs and recording snapshots keep the provider's own times, so changing it
-never needs a guide refresh.
+URLs and recording snapshots keep the provider's own times. Date-window reads
+are repeated at the adjusted provider clock when the offset changes.
 
 The contract lives in `libs/shared/interfaces/src/lib/epg-display-offset.util.ts`
 and has two equivalent forms — **display** (`epgDisplayTimeMs`: shift a
@@ -823,25 +845,30 @@ views also carry the optional `guideAvailable` input and `openGuide` output:
 the M3U host binds them in both branches, so the programme guide's Guide
 action is reachable whichever view the setting selects.
 
-- **One channel, preloaded window.** The panel always shows a single channel.
-  Each provider returns a multi-day window in roughly one call (M3U
-  `GET_CHANNEL_PROGRAMS`; Stalker `get_epg_info`; Xtream `get_simple_data_table`),
-  so the whole ribbon is rendered up front and day navigation is **scroll within
-  the loaded window** — no per-day lazy fetch. The date stepper / "Now" jump
-  scroll the ribbon; the day label follows the scroll position.
+- **One channel, provider-specific window.** The panel always shows a single
+  channel. M3U fetches the selected local day with the guide-window IPC and
+  retains a separate current-day slice. Stalker `get_epg_info` and Xtream
+  `get_simple_data_table` still return their multi-day windows. The date
+  stepper / "Now" jump scroll the ribbon; the day label follows the scroll
+  position. M3U requests a new window when the selected day changes.
 - **Auto-focus on channel select.** When a channel's EPG (re)loads or the ribbon
   (re)mounts, the timeline centres the **currently airing programme** in the
   viewport **instantly** (`behavior: 'auto'`, no scroll animation) — selecting a
   channel lands on "now" without the user pressing the Now button. The jump is
-  deduped by programme-set identity (`programsFocusKey`), so the 30s now-tick,
-  zoom changes, or a host re-emitting the same data never re-jump the viewport;
-  switching channels (or returning after viewing an empty-day channel) re-centres.
+  deduped by source/channel identity when `archiveContextKey` is present, and
+  by programme-set identity (`programsFocusKey`) otherwise. Day-window loads,
+  the 30s now-tick, zoom changes, or a host re-emitting data never re-jump the
+  viewport. If a day load moves the timeline's axis origin, the scroll position
+  adjusts to keep the viewed time in place. Switching channels (or returning
+  after viewing an empty-day channel) re-centres.
   The explicit "Now" button still animates (`behavior: 'smooth'`) since it is a
   deliberate user action. See `TimelineScrollController.maybeAutoFocus` /
   `focusCurrentProgram` in `epg-timeline-scroll.controller.ts`.
 - **Controlled component.** `app-epg-timeline` is presentation-only: it takes
-  `programs`, `archivePlaybackAvailable`, `archiveDays`, `activeProgram`,
-  `isLivePlayback`, `loading`, `emptyReason`, `selectedDate`, `collapsed`,
+  `programs`, `archivePlaybackAvailable`, `futurePlaybackAvailable`,
+  `archiveDays`, `activeProgram`,
+  `isLivePlayback`, `loading`, `emptyReason`, `hasProgramsElsewhere`,
+  `selectedDate`, `collapsed`,
   `summary` and emits `programActivated`, `returnToLive`, `selectedDateChange`,
   `openEpgSettings`, `retry`, `collapsedChange`. The host layout owns playback,
   persists the collapse state (`live-epg-panel-state` in localStorage), and (for
@@ -866,9 +893,11 @@ action is reachable whichever view the setting selects.
   no-EPG-anywhere states and while loading. Return-to-live is a playback control
   (`!isLivePlayback()`) and is independent of EPG state.
 - **State-driven affordances.** Blocks are coloured past / now / future, with a
-  red "now" playhead. Catch-up "Watch" appears on past blocks — and as a
-  start-over replay button on the currently-airing block — only when
-  `archivePlaybackAvailable` (Xtream `tv_archive`, M3U `catchup-*`); Stalker is
+  red "now" playhead. Catch-up "Watch" appears on past blocks and as a
+  start-over replay button on the currently-airing block when
+  `archivePlaybackAvailable` (Xtream `tv_archive`, M3U `catchup-*`). M3U also
+  offers future programmes when catch-up playback is configured; URL resolution
+  failures use the existing snackbar. Stalker is
   schedule-only (dimmed past + a notice, no false buttons). The "i" button opens
   the shared `app-epg-item-description` dialog with a state-aware action.
 - **Empty / error states.** `emptyReason` selects one of six states
@@ -896,11 +925,11 @@ action is reachable whichever view the setting selects.
   (D) a px-per-minute **zoom** (tick density adapts via
   `timelineTickStepForScale`): the toolbar's icon-only zoom button cycles
   three presets — day overview (`1`) → by hour (`1.75`, the default) →
-  detailed (`3.4`, the scale a group chip expands to) — snapping a
+  detailed (`13.6`, the scale a group chip expands to), snapping a
   wheel-tuned scale to its band's successor (`TIMELINE_ZOOM_LEVELS`,
   `nextTimelineZoomScale`), while Ctrl/⌘ + wheel (and trackpad pinch) over
   the ribbon zooms continuously around the cursor within
-  `TIMELINE_ZOOM_MIN..MAX` and `preventDefault`s so Chromium never page-zooms
+  `TIMELINE_ZOOM_MIN..MAX` (`0.8..24`) and `preventDefault`s so Chromium never page-zooms
   the same gesture; the current level lives in the tooltip/`aria-label` and
   a `data-zoom-level` attribute; and (E) **grouping** of ≥4 consecutive short
   (<10 min) programmes into one dashed "N short" chip when zoomed out
@@ -1042,7 +1071,7 @@ These URLs are playlist-scoped by default:
   and surface a stale (or no) current programme. After the scoped + legacy
   candidate queries, any candidate that resolved by id/display-name but still has
   no in-scope current programme is retried once **unscoped** (all sources),
-  mirroring the timeline's own unscoped `getChannelPrograms` lookup. This keeps
+  preserving the older unscoped single-channel lookup fallback. This keeps
   the channel-list "now" line consistent with the timeline when a channel's row
   and its programmes carry different `source_url` values (shared XMLTV ids across
   multiple imports), where the channel resolves in scope but its programmes are
@@ -1309,7 +1338,9 @@ class EpgService {
   that the selected M3U channel has a playable replay scheme. Archive days
   alone are not enough.
 - M3U catch-up support is resolved in `@iptvnator/shared/m3u-utils` from channel metadata and
-  the archived program start time.
+  the programme start time. Past and current URLs end at the current time;
+  future URL-backed programmes use the programme stop time, since ending a
+  future interval at the current time would put `lutc` before `utc`.
 - Supported replay precedence:
     1. `catchup.source` if it is an HTTP(S) URL. IPTVNator rewrites or appends
        standard `utc` and `lutc` query params on that URL.
@@ -1348,8 +1379,12 @@ Programme details opened from the EPG timeline or list offer **Copy archive
 URL** when catch-up is available. Xtream Live TV, M3U playback and their
 Favorites/Recent live tabs resolve the same URL as archive playback without
 selecting a programme or changing the player. Stalker and unsupported/expired
-archive entries expose no copy action. The full M3U guide currently has no
-catch-up capability and therefore does not expose this action.
+archive entries expose no copy action. The multi-channel M3U guide uses the
+same catch-up resolver: clicking the current programme switches to its live
+channel, while clicking a past or future programme starts its M3U catch-up URL
+when one can be resolved. Option-click opens programme details, where the
+archive URL can be copied. Details show the archive-unavailable note for either
+a past or future programme when its channel has no usable catch-up URL.
 
 The URL can contain account credentials; the dialog explains that external
 players may also need the source's HTTP headers. Copy is explicit, errors use

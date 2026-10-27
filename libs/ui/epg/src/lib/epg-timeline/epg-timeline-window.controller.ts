@@ -122,6 +122,7 @@ export function viewportNeedsWindow(
 export interface TimelineWindowHost {
     readonly ribbon: Signal<ElementRef<HTMLElement> | undefined>;
     readonly programs: Signal<readonly EpgProgram[]>;
+    readonly archiveContextKey: Signal<string | null>;
     readonly axis: Signal<TimelineAxis>;
     readonly blocks: Signal<readonly TimelineBlock[]>;
     readonly scale: Signal<number>;
@@ -148,7 +149,10 @@ export class TimelineWindowController {
     private readonly identity = computed(
         () => ({
             ribbon: this.scroller(),
-            key: programsFocusKey(this.ctx.programs()),
+            key: this.ctx.programs().length
+                ? this.ctx.archiveContextKey() ||
+                  programsFocusKey(this.ctx.programs())
+                : '',
             axisStartMs: this.ctx.axis().startMs,
         }),
         {
