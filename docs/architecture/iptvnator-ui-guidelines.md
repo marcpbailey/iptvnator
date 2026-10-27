@@ -685,7 +685,7 @@ remain local when the meaning is explicit.
 ### Programme Guide
 
 - The guide supports zoom up to 1,920 px per hour so short programmes remain distinguishable.
-- An ordinary click or tap on a playable programme starts playback. Option-click opens details without changing playback; a separate details control remains visible on touch devices. Keyboard navigation and the I shortcut also open details.
+- An ordinary click or tap on a playable programme starts playback. Option-click opens details without changing playback; a separate details control remains visible on touch devices. On micro cards, the upper half opens details and the lower half starts playback. Keyboard navigation and the I shortcut also open details.
 - A playable programme shows a smaller play triangle in the top-right status area on hover or keyboard focus. The current programme keeps its ON NOW status readable at rest.
 
 ### Shared EPG Pane
