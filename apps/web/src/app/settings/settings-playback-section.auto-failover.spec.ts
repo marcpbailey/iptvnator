@@ -81,6 +81,8 @@ function createForm(player: VideoPlayer): FormGroup {
         fullscreenChannelPanel: new FormControl(true),
         streamFormat: new FormControl(StreamFormat.AutoStreamFormat),
         openStreamOnDoubleClick: new FormControl(false),
+        rememberLastChannel: new FormControl(false),
+        autoplayOnRelaunch: new FormControl(false),
         showExternalPlaybackBar: new FormControl(true),
         embeddedMpvKeepControlsVisible: new FormControl(false),
         embeddedMpvFrameCopy: new FormControl(false),
