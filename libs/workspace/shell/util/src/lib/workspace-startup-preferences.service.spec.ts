@@ -83,6 +83,9 @@ describe('WorkspaceStartupPreferencesService', () => {
         expect(pending.peekPendingResumeShouldAutoplay('playlist-1')).toBe(
             true
         );
+        expect(pending.peekPendingResumeFallbackPath('playlist-1')).toBe(
+            '/workspace/dashboard'
+        );
     });
 
     it('does not route to a removed playlist', async () => {

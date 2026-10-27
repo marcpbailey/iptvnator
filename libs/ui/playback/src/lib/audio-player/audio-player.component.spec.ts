@@ -59,6 +59,22 @@ describe('AudioPlayerComponent', () => {
         expect(component.playState()).toBe('play');
     });
 
+    it('loads a remembered radio channel without autoplay', () => {
+        fixture = TestBed.createComponent(AudioPlayerComponent);
+        component = fixture.componentInstance;
+        fixture.componentRef.setInput('url', 'https://example.com/radio.mp3');
+        fixture.componentRef.setInput('startPaused', true);
+        fixture.detectChanges();
+
+        const audio = fixture.nativeElement.querySelector(
+            'audio'
+        ) as HTMLAudioElement;
+        expect(audio.autoplay).toBe(false);
+        expect(loadSpy).toHaveBeenCalled();
+        expect(playSpy).not.toHaveBeenCalled();
+        expect(component.playState()).toBe('paused');
+    });
+
     it('clamps volume updates and persists them to localStorage', () => {
         const audio = createComponent();
 

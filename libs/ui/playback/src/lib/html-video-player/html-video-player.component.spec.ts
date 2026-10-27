@@ -89,6 +89,22 @@ describe('HtmlVideoPlayerComponent', () => {
         expect(component).toBeTruthy();
     });
 
+    it('loads a remembered channel without starting playback', () => {
+        fixture.componentRef.setInput('startPaused', true);
+        fixture.detectChanges();
+        const video = component.videoPlayer.nativeElement;
+        expect(video.autoplay).toBe(false);
+        jest.spyOn(video, 'load').mockImplementation(() => undefined);
+        const play = jest.spyOn(video, 'play').mockResolvedValue(undefined);
+
+        component.playChannel({
+            ...TEST_CHANNEL,
+            url: 'https://example.test/live.mp4',
+        });
+
+        expect(play).not.toHaveBeenCalled();
+    });
+
     it('keeps native and legacy controls when shared controls are disabled', () => {
         const video = component.videoPlayer.nativeElement;
 

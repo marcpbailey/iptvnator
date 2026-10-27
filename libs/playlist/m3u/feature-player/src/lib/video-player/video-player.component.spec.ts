@@ -22,6 +22,7 @@ import {
     PlaylistsService,
     RuntimeCapabilitiesService,
     PlaybackResumeService,
+    ParentalLockService,
     SettingsStore,
 } from '@iptvnator/services';
 import {
@@ -121,6 +122,7 @@ describe('VideoPlayerComponent', () => {
         epgPrograms$.next([]);
         routerMock.currentNavigation.mockReturnValue(null);
         routerMock.navigate.mockClear();
+        routerMock.navigateByUrl.mockClear();
         storeMock.dispatch.mockClear();
         dataServiceMock.sendIpcEvent.mockClear();
 
@@ -265,7 +267,10 @@ describe('VideoPlayerComponent', () => {
         fixture.detectChanges();
 
         expect(storeMock.dispatch).toHaveBeenCalledWith(
-            ChannelActions.setActiveChannel({ channel: sampleChannel })
+            ChannelActions.setActiveChannel({
+                channel: sampleChannel,
+                startPlayback: true,
+            })
         );
         expect(resume.peekPendingResumeStreamUrl('playlist-1')).toBeNull();
     });
@@ -280,6 +285,48 @@ describe('VideoPlayerComponent', () => {
         fixture.detectChanges();
 
         expect(component.startPaused()).toBe(true);
+        expect(storeMock.dispatch).toHaveBeenCalledWith(
+            ChannelActions.setActiveChannel({
+                channel: sampleChannel,
+                startPlayback: false,
+            })
+        );
+    });
+
+    it('does not restore a channel in a locked group', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        jest.spyOn(
+            TestBed.inject(ParentalLockService),
+            'isM3uGroupLocked'
+        ).mockReturnValue(true);
+        resume.setPendingResume('playlist-1', sampleChannel.url, true);
+        channels.set([sampleChannel]);
+
+        fixture.detectChanges();
+
+        expect(storeMock.dispatch).not.toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: ChannelActions.setActiveChannel.type,
+            })
+        );
+    });
+
+    it('returns to normal startup navigation when the saved channel is gone', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            'https://example.test/gone.m3u8',
+            true,
+            undefined,
+            '/workspace/dashboard'
+        );
+        channels.set([sampleChannel]);
+
+        fixture.detectChanges();
+
+        expect(routerMock.navigateByUrl).toHaveBeenCalledWith(
+            '/workspace/dashboard'
+        );
     });
 
     it('registers and clears the workspace guide header shortcut', () => {

@@ -325,6 +325,41 @@ describe('LiveStreamLayoutComponent', () => {
         expect(resume.peekPendingResumeStreamUrl(playlist.id)).toBeNull();
     });
 
+    it('uses the current Xtream URL and stays paused when autoplay is off', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            playlist.id,
+            'https://example.com/expired-url',
+            false,
+            String(sampleChannel.xtream_id)
+        );
+        liveStreams.set([sampleChannel]);
+
+        fixture.detectChanges();
+
+        expect(component.activePlayback()?.streamUrl).toBe(
+            'https://example.com/live.ts'
+        );
+        expect(component.startPaused()).toBe(true);
+        expect(xtreamStore.openPlayer).not.toHaveBeenCalled();
+    });
+
+    it('does not open an external Xtream player when autoplay is off', () => {
+        portalPlayer.isEmbeddedPlayer.mockReturnValue(false);
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            playlist.id,
+            'https://example.com/expired-url',
+            false,
+            String(sampleChannel.xtream_id)
+        );
+        liveStreams.set([sampleChannel]);
+
+        fixture.detectChanges();
+
+        expect(xtreamStore.openPlayer).not.toHaveBeenCalled();
+    });
+
     it('renders the controlled epg list for electron playback', () => {
         epgItems.set([
             buildEpgItem(

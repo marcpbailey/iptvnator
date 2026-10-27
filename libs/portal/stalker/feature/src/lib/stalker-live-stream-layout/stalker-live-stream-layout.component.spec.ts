@@ -392,8 +392,45 @@ describe('StalkerLiveStreamLayoutComponent', () => {
 
         fixture.detectChanges();
 
-        expect(play).toHaveBeenCalledWith(channels[1], true);
+        expect(play).toHaveBeenCalledWith(channels[1], true, undefined, true);
         expect(resume.peekPendingResumeStreamUrl('playlist-1')).toBeNull();
+    });
+
+    it('does not open an external Stalker player when autoplay is off', async () => {
+        portalPlayer.isEmbeddedPlayer.mockReturnValue(false);
+        const channels = defaultItvChannels();
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            'https://example.com/expired-session',
+            false,
+            String(channels[1].id)
+        );
+        itvFullChannelList.set(channels);
+
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        expect(portalPlayer.openResolvedPlayback).not.toHaveBeenCalled();
+    });
+
+    it('clears the startup pause when another channel is selected', async () => {
+        const channels = defaultItvChannels();
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            'https://example.com/expired-session',
+            false,
+            String(channels[0].id)
+        );
+        itvFullChannelList.set(channels);
+        fixture.detectChanges();
+        await fixture.whenStable();
+        expect(component.startPaused()).toBe(true);
+
+        await component.playChannel(channels[1], true);
+
+        expect(component.startPaused()).toBe(false);
     });
 
     it('renders the controlled epg list and removes the load-more button', () => {

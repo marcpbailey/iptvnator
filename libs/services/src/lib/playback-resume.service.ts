@@ -17,6 +17,7 @@ interface PendingResume {
     streamUrl: string;
     shouldAutoplay: boolean;
     channelId?: string;
+    fallbackPath?: string;
 }
 
 @Injectable({
@@ -30,18 +31,23 @@ export class PlaybackResumeService {
         playlistId: string,
         streamUrl: string,
         shouldAutoplay: boolean,
-        channelId?: string
+        channelId?: string,
+        fallbackPath?: string
     ): void {
         this.pendingResume = {
             playlistId,
             streamUrl,
             shouldAutoplay,
             channelId,
+            fallbackPath,
         };
     }
 
     peekPendingResumeStreamUrl(playlistId: string): string | null {
-        if (!this.pendingResume || this.pendingResume.playlistId !== playlistId) {
+        if (
+            !this.pendingResume ||
+            this.pendingResume.playlistId !== playlistId
+        ) {
             return null;
         }
 
@@ -59,6 +65,12 @@ export class PlaybackResumeService {
     peekPendingResumeChannelId(playlistId: string): string | null {
         return this.pendingResume?.playlistId === playlistId
             ? (this.pendingResume.channelId ?? null)
+            : null;
+    }
+
+    peekPendingResumeFallbackPath(playlistId: string): string | null {
+        return this.pendingResume?.playlistId === playlistId
+            ? (this.pendingResume.fallbackPath ?? null)
             : null;
     }
 

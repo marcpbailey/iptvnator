@@ -460,6 +460,7 @@ export class LiveStreamLayoutComponent
 
     onPlayingStateChanged(playing: boolean | undefined): void {
         if (playing !== undefined) this.isActivelyPlaying.set(playing);
+        if (playing) this.resumeTargetStreamUrl.set(null);
     }
 
     constructor() {
@@ -515,10 +516,21 @@ export class LiveStreamLayoutComponent
                 this.playbackResumeService.peekPendingResumeShouldAutoplay(
                     playlist.id
                 );
+            const fallbackPath =
+                this.playbackResumeService.peekPendingResumeFallbackPath(
+                    playlist.id
+                );
             this.playbackResumeService.clearPendingResume();
-            if (!target) return;
-            if (!shouldAutoplay) this.resumeTargetStreamUrl.set(url);
-            this.playLive(target, true);
+            if (!target) {
+                if (fallbackPath) void this.router.navigateByUrl(fallbackPath);
+                return;
+            }
+            if (!shouldAutoplay) {
+                this.resumeTargetStreamUrl.set(
+                    this.xtreamStore.constructStreamUrl(target)
+                );
+            }
+            this.playLive(target, shouldAutoplay);
             this.xtreamStore.setSelectedItem(
                 target as unknown as Record<string, unknown>
             );

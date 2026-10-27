@@ -86,6 +86,7 @@ export const storeMock = {
 export const routerMock = {
     url: '/workspace/playlists/playlist-1/all',
     navigate: jest.fn(),
+    navigateByUrl: jest.fn(),
     currentNavigation: jest.fn().mockReturnValue(null),
 };
 

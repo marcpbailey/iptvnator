@@ -64,6 +64,19 @@ describe('ArtPlayerComponent', () => {
         fixture?.destroy();
     });
 
+    it('disables autoplay for a remembered paused channel', () => {
+        fixture = TestBed.createComponent(ArtPlayerComponent);
+        component = fixture.componentInstance;
+        fixture.componentRef.setInput('channel', {
+            url: 'https://example.test/live.m3u8',
+            name: 'Live channel',
+        });
+        fixture.componentRef.setInput('startPaused', true);
+        fixture.detectChanges();
+
+        expect(artPlayerInstances[0].options['autoplay']).toBe(false);
+    });
+
     it.each(['channel', 'destroy', 'late entry'])(
         'closes legacy PiP on %s',
         (transition) => {

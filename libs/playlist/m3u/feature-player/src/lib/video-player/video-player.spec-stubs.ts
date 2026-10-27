@@ -98,6 +98,7 @@ export class StubAudioPlayerComponent {
     readonly channelLogo = input('');
     readonly volume = input<number | null>(null);
     readonly playbackSessionKey = input<string | null>(null);
+    readonly startPaused = input(false);
     readonly volumeChange = output<number>();
 }
 

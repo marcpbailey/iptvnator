@@ -774,6 +774,7 @@ export class VideoPlayerComponent
 
     onPlayingStateChanged(playing: boolean | undefined): void {
         if (playing !== undefined) this.isActivelyPlaying.set(playing);
+        if (playing) this.resumeTargetStreamUrl.set(null);
     }
 
     constructor() {
@@ -835,12 +836,30 @@ export class VideoPlayerComponent
                 this.playbackResumeService.peekPendingResumeShouldAutoplay(
                     playlistId
                 );
+            const fallbackPath =
+                this.playbackResumeService.peekPendingResumeFallbackPath(
+                    playlistId
+                );
             const channel = channels.find((item) => item.url === url);
             this.resumeConsumed = true;
             this.playbackResumeService.clearPendingResume();
-            if (!channel) return;
+            if (
+                !channel ||
+                this.parentalLock.isM3uGroupLocked(
+                    playlistId,
+                    channel?.group?.title ?? ''
+                )
+            ) {
+                if (fallbackPath) void this.router.navigateByUrl(fallbackPath);
+                return;
+            }
             if (!shouldAutoplay) this.resumeTargetStreamUrl.set(channel.url);
-            this.store.dispatch(ChannelActions.setActiveChannel({ channel }));
+            this.store.dispatch(
+                ChannelActions.setActiveChannel({
+                    channel,
+                    startPlayback: shouldAutoplay,
+                })
+            );
         });
 
         effect(() => {

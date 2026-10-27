@@ -161,7 +161,7 @@ import { PlaybackHistoryConfirmation } from '../playback-history/playback-histor
 
             <audio
                 preload="metadata"
-                autoplay
+                [autoplay]="!startPaused()"
                 #audio
                 (timeupdate)="onTimeUpdate()"
             ></audio>
@@ -186,6 +186,7 @@ export class AudioPlayerComponent {
     readonly dispatchAdjacentChannelAction = input(true);
     /** The host's playback session key, for the history confirmation. */
     readonly playbackSessionKey = input<string | null>(null);
+    readonly startPaused = input(false);
     readonly channelSwitchRequested = output<'next' | 'previous'>();
     readonly volumeChange = output<number>();
 
@@ -238,7 +239,7 @@ export class AudioPlayerComponent {
             audio.volume = untracked(() => this.volume());
             audio.load();
             this.logoError.set(false);
-            this.play();
+            if (!untracked(() => this.startPaused())) this.play();
         });
 
         effect(() => {

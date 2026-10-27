@@ -26,6 +26,10 @@ export class WorkspaceStartupPreferencesService {
         const resumePath = await this.resolveResumePlaybackPath();
         if (resumePath) return resumePath;
 
+        return this.resolveNormalWorkspacePath();
+    }
+
+    private async resolveNormalWorkspacePath(): Promise<string> {
         const showDashboard = this.showDashboard();
         const firstViewPath =
             this.getFirstAvailableWorkspacePath(showDashboard);
@@ -65,7 +69,8 @@ export class WorkspaceStartupPreferencesService {
             channel.streamUrl,
             !!this.settingsStore.autoplayOnRelaunch?.() &&
                 !!this.settingsStore.resumePlaybackOnStartup?.(),
-            channel.channelId
+            channel.channelId,
+            await this.resolveNormalWorkspacePath()
         );
         return path;
     }

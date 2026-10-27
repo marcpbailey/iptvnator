@@ -661,6 +661,7 @@ export class StalkerLiveStreamLayoutComponent
     private pendingResumeConsumed = false;
     private readonly isActivelyPlaying = signal(true);
     private readonly resumeTargetChannelId = signal<string | null>(null);
+    private readonly router = inject(Router, { optional: true });
     readonly startPaused = computed(
         () =>
             this.resumeTargetChannelId() !== null &&
@@ -669,6 +670,7 @@ export class StalkerLiveStreamLayoutComponent
 
     onPlayingStateChanged(playing: boolean | undefined): void {
         if (playing !== undefined) this.isActivelyPlaying.set(playing);
+        if (playing) this.resumeTargetChannelId.set(null);
     }
 
     constructor() {
@@ -697,10 +699,20 @@ export class StalkerLiveStreamLayoutComponent
                 this.playbackResumeService.peekPendingResumeShouldAutoplay(
                     playlistId
                 );
+            const fallbackPath =
+                this.playbackResumeService.peekPendingResumeFallbackPath(
+                    playlistId
+                );
             this.playbackResumeService.clearPendingResume();
-            if (!target) return;
-            if (!shouldAutoplay) this.resumeTargetChannelId.set(channelId);
-            void this.playChannel(target, true);
+            if (!target) {
+                if (fallbackPath) void this.router?.navigateByUrl(fallbackPath);
+                return;
+            }
+            if (!shouldAutoplay)
+                this.resumeTargetChannelId.set(
+                    normalizeStalkerEntityId(target.id)
+                );
+            void this.playChannel(target, shouldAutoplay, undefined, true);
         });
 
         effect(() => {
@@ -1004,8 +1016,10 @@ export class StalkerLiveStreamLayoutComponent
     async playChannel(
         item: StalkerItvChannel,
         startPlayback = !this.settingsStore.openStreamOnDoubleClick(),
-        navigationContext?: Signal<string> | 'preserve'
+        navigationContext?: Signal<string> | 'preserve',
+        restoring = false
     ) {
+        if (!restoring) this.resumeTargetChannelId.set(null);
         const commitNavigation = this.navigation.prepare(
             item,
             navigationContext
