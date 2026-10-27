@@ -197,6 +197,14 @@ describe('buildExternalPlayerPayload', () => {
         it('respects the double-click setting and missing settings', () => {
             expect(
                 shouldAutoLaunchExternalPlayer(
+                    mpvSettings,
+                    false,
+                    activeChannel,
+                    VideoPlayer.MPV
+                )
+            ).toBe(false);
+            expect(
+                shouldAutoLaunchExternalPlayer(
                     { ...mpvSettings, openStreamOnDoubleClick: true },
                     undefined,
                     activeChannel,

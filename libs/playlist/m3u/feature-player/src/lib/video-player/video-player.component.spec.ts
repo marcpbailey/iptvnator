@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Keep startup resume interaction tests with their existing component setup. */
 import { AsyncPipe } from '@angular/common';
 import { NO_ERRORS_SCHEMA, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
@@ -20,6 +21,8 @@ import {
     DataService,
     PlaylistsService,
     RuntimeCapabilitiesService,
+    PlaybackResumeService,
+    ParentalLockService,
     SettingsStore,
 } from '@iptvnator/services';
 import {
@@ -39,6 +42,7 @@ import {
     buildAiringProgram,
     activePlaybackUrl,
     channels,
+    channelsLoaded,
     channels$,
     activeChannel$,
     channelsLoading,
@@ -112,6 +116,7 @@ describe('VideoPlayerComponent', () => {
         stripCountryPrefix.set(false);
         activePlaybackUrl.set(null);
         channelsLoading.set(false);
+        channelsLoaded.set(false);
         currentEpgProgram.set(null);
         activeEpgProgram.set(null);
         externalSession.set(null);
@@ -119,6 +124,7 @@ describe('VideoPlayerComponent', () => {
         epgPrograms$.next([]);
         routerMock.currentNavigation.mockReturnValue(null);
         routerMock.navigate.mockClear();
+        routerMock.navigateByUrl.mockClear();
         storeMock.dispatch.mockClear();
         dataServiceMock.sendIpcEvent.mockClear();
 
@@ -195,6 +201,7 @@ describe('VideoPlayerComponent', () => {
                     provide: SettingsStore,
                     useValue: {
                         player,
+                        updateSettings: jest.fn().mockResolvedValue(undefined),
                         showCaptions,
                         stripCountryPrefix,
                         resolvedEpgViewMode: epgViewMode,
@@ -252,6 +259,185 @@ describe('VideoPlayerComponent', () => {
         fixture?.destroy();
         localStorage.removeItem(LIVE_EPG_PANEL_STATE_STORAGE_KEY);
         window.electron = originalElectron;
+    });
+
+    it('selects the saved M3U channel once when startup resumes this playlist', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume('playlist-1', sampleChannel.url, true);
+        channels.set([sampleChannel]);
+        channelsLoaded.set(true);
+
+        fixture.detectChanges();
+
+        expect(storeMock.dispatch).toHaveBeenCalledWith(
+            ChannelActions.setActiveChannel({
+                channel: sampleChannel,
+                startPlayback: true,
+            })
+        );
+        expect(resume.peekPendingResumeStreamUrl('playlist-1')).toBeNull();
+    });
+
+    it('prepares a remembered paused channel without autoplay', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
+        resume.setPendingResume('playlist-1', sampleChannel.url, false);
+        channels.set([sampleChannel]);
+        channelsLoaded.set(true);
+
+        fixture.detectChanges();
+        syncStoreState(sampleChannel);
+        fixture.detectChanges();
+
+        expect(component.startPaused()).toBe(true);
+        expect(recordStarted).not.toHaveBeenCalled();
+        expect(storeMock.dispatch).toHaveBeenCalledWith(
+            ChannelActions.setActiveChannel({
+                channel: sampleChannel,
+                startPlayback: false,
+            })
+        );
+    });
+
+    it('does not record a selected external channel as playing', () => {
+        player.set(VideoPlayer.MPV);
+        const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
+        resume.setPendingResume('playlist-1', sampleChannel.url, false);
+        channels.set([sampleChannel]);
+        channelsLoaded.set(true);
+
+        fixture.detectChanges();
+        syncStoreState(sampleChannel);
+        fixture.detectChanges();
+
+        expect(recordStarted).not.toHaveBeenCalled();
+    });
+
+    it('does not remember an external channel selected without a launch', () => {
+        player.set(VideoPlayer.MPV);
+        const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
+
+        syncStoreState(sampleChannel);
+        fixture.detectChanges();
+
+        expect(recordStarted).not.toHaveBeenCalled();
+    });
+
+    it('remembers an external M3U channel after the player starts', () => {
+        player.set(VideoPlayer.MPV);
+        const recordStarted = jest
+            .spyOn(
+                TestBed.inject(PlaybackResumeService),
+                'recordPlaybackStarted'
+            )
+            .mockResolvedValue(undefined);
+        syncStoreState(sampleChannel);
+        externalSession.set({
+            id: 'session-1',
+            player: 'mpv',
+            status: 'launching',
+            title: sampleChannel.name,
+            streamUrl: sampleChannel.url,
+            startedAt: '2026-10-27T00:00:00Z',
+            updatedAt: '2026-10-27T00:00:00Z',
+            canClose: true,
+        });
+
+        fixture.detectChanges();
+        expect(recordStarted).not.toHaveBeenCalled();
+
+        externalSession.set({ ...externalSession()!, status: 'playing' });
+        fixture.detectChanges();
+        expect(recordStarted).toHaveBeenCalledWith(
+            'm3u',
+            'playlist-1',
+            sampleChannel.url
+        );
+    });
+
+    it('does not remember M3U video on demand as a live channel', () => {
+        const movie = {
+            ...sampleChannel,
+            name: 'Example Movie',
+            url: 'https://example.test/movie.mp4',
+        };
+        const recordStarted = jest
+            .spyOn(
+                TestBed.inject(PlaybackResumeService),
+                'recordPlaybackStarted'
+            )
+            .mockResolvedValue(undefined);
+
+        syncStoreState(movie);
+        fixture.detectChanges();
+
+        expect(recordStarted).not.toHaveBeenCalled();
+    });
+
+    it('does not restore a channel in a locked group', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        jest.spyOn(
+            TestBed.inject(ParentalLockService),
+            'isM3uGroupLocked'
+        ).mockReturnValue(true);
+        resume.setPendingResume('playlist-1', sampleChannel.url, true);
+        channels.set([sampleChannel]);
+        channelsLoaded.set(true);
+
+        fixture.detectChanges();
+
+        expect(storeMock.dispatch).not.toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: ChannelActions.setActiveChannel.type,
+            })
+        );
+    });
+
+    it('returns to normal startup navigation when the saved channel is gone', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            'https://example.test/gone.m3u8',
+            true,
+            undefined,
+            '/workspace/dashboard'
+        );
+        channels.set([sampleChannel]);
+        channelsLoaded.set(true);
+
+        fixture.detectChanges();
+
+        expect(routerMock.navigateByUrl).toHaveBeenCalledWith(
+            '/workspace/dashboard'
+        );
+    });
+
+    it('returns to normal startup navigation when the loaded playlist is empty', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            sampleChannel.url,
+            true,
+            undefined,
+            '/workspace/dashboard'
+        );
+        channels.set([]);
+        channelsLoaded.set(true);
+
+        fixture.detectChanges();
+
+        expect(routerMock.navigateByUrl).toHaveBeenCalledWith(
+            '/workspace/dashboard'
+        );
+        expect(resume.peekPendingResumeStreamUrl('playlist-1')).toBeNull();
     });
 
     it('registers and clears the workspace guide header shortcut', () => {

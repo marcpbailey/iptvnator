@@ -112,7 +112,9 @@
                             [channelName]="displayChannelName()"
                             [volume]="volume()"
                             [playbackSessionKey]="playbackSessionKey()"
+                            [startPaused]="startPaused()"
                             (volumeChange)="onInlineVolumeChange($event)"
+                            (playingChange)="onPlayingStateChanged($event)"
                         />
                     } @else {
                         <app-web-player-view
@@ -129,6 +131,8 @@
                             [showEmbeddedMpvControls]="!guideOpen()"
                             [timelineSegments]="catchupTimelineSegments()"
                             [recordingMetadata]="recordingMetadata()"
+                            [startPaused]="startPaused()"
+                            (timeUpdate)="onPlayingStateChanged($event.playing)"
                             (externalFallbackRequested)="
                                 handleExternalFallbackRequest($event)
                             "

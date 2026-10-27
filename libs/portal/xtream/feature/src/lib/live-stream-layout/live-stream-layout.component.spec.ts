@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Keep startup resume interaction tests with their existing component setup. */
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -15,6 +16,7 @@ import {
     LIVE_EPG_PANEL_STATE_STORAGE_KEY,
     liveSidebarStateStorageKey,
     LiveLayoutSidebarStateService,
+    PORTAL_EXTERNAL_PLAYBACK,
     PORTAL_PLAYER,
 } from '@iptvnator/portal/shared/util';
 import {
@@ -35,12 +37,17 @@ import {
 import {
     EpgItem,
     EpgProgram,
+    ExternalPlayerSession,
     ResolvedPortalPlayback,
 } from '@iptvnator/shared/interfaces';
 import { GridListComponent } from '@iptvnator/portal/shared/ui';
 import { PortalChannelsListComponent } from '../portal-channels-list/portal-channels-list.component';
 import { LiveStreamLayoutComponent } from './live-stream-layout.component';
-import { RuntimeCapabilitiesService, SettingsStore } from '@iptvnator/services';
+import {
+    PlaybackResumeService,
+    RuntimeCapabilitiesService,
+    SettingsStore,
+} from '@iptvnator/services';
 import { createPlaybackSessionKey } from '@iptvnator/playback/util';
 import { liveHistoryTestCases } from './live-stream-layout-history.spec-data';
 
@@ -75,6 +82,7 @@ describe('LiveStreamLayoutComponent', () => {
     const currentPlaylist = signal(playlist);
     const liveStreams = signal<unknown[]>([]);
     const isContentInitialized = signal(true);
+    const externalSession = signal<ExternalPlayerSession | null>(null);
     const paginatedContent = signal<unknown[]>([]);
     const hasMoreContent = signal(false);
 
@@ -105,7 +113,11 @@ describe('LiveStreamLayoutComponent', () => {
     };
 
     let routerEvents: Subject<unknown>;
-    let router: { events: Subject<unknown>; navigate: jest.Mock };
+    let router: {
+        events: Subject<unknown>;
+        navigate: jest.Mock;
+        navigateByUrl: jest.Mock;
+    };
     const favoritesService = {
         getFavorites: jest.fn().mockReturnValue(of([])),
     };
@@ -120,6 +132,7 @@ describe('LiveStreamLayoutComponent', () => {
         openExternalPlayback: jest.fn(),
     };
     const settingsStore = {
+        updateSettings: jest.fn().mockResolvedValue(undefined),
         openStreamOnDoubleClick: signal(false),
         // Reset in beforeEach: the store is module-scoped, so a test failure
         // before an in-test restore must not leak 'list' into siblings.
@@ -146,7 +159,11 @@ describe('LiveStreamLayoutComponent', () => {
         } as unknown as typeof window.electron;
 
         routerEvents = new Subject();
-        router = { events: routerEvents, navigate: jest.fn() };
+        router = {
+            events: routerEvents,
+            navigate: jest.fn(),
+            navigateByUrl: jest.fn(),
+        };
         xtreamStore.constructStreamUrl.mockClear();
         xtreamStore.openPlayer.mockClear();
         xtreamStore.addRecentItem.mockClear();
@@ -163,6 +180,7 @@ describe('LiveStreamLayoutComponent', () => {
         xtreamUrlService.resolveCatchupUrl.mockClear();
         portalPlayer.isEmbeddedPlayer.mockReset();
         portalPlayer.isEmbeddedPlayer.mockReturnValue(true);
+        externalSession.set(null);
         portalPlayer.openExternalPlayback.mockClear();
 
         epgItems.set([]);
@@ -213,9 +231,14 @@ describe('LiveStreamLayoutComponent', () => {
                     useValue: {
                         events: router.events.asObservable(),
                         navigate: router.navigate,
+                        navigateByUrl: router.navigateByUrl,
                     },
                 },
                 { provide: XtreamStore, useValue: xtreamStore },
+                {
+                    provide: PORTAL_EXTERNAL_PLAYBACK,
+                    useValue: { activeSession: externalSession },
+                },
                 { provide: FavoritesService, useValue: favoritesService },
                 { provide: XtreamUrlService, useValue: xtreamUrlService },
                 {
@@ -298,6 +321,162 @@ describe('LiveStreamLayoutComponent', () => {
         fixture.detectChanges();
         expect(component.activePlayback()).toBeNull();
         expect(component.playbackSessionKey()).toBe('');
+    });
+
+    it('reselects the saved Xtream live channel by stable id', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            playlist.id,
+            'https://example.com/old-url',
+            true,
+            String(sampleChannel.xtream_id)
+        );
+        liveStreams.set([sampleChannel]);
+        const play = jest
+            .spyOn(component, 'playLive')
+            .mockImplementation(() => undefined);
+
+        fixture.detectChanges();
+
+        expect(play).toHaveBeenCalledWith(sampleChannel, true);
+        expect(resume.peekPendingResumeStreamUrl(playlist.id)).toBeNull();
+    });
+
+    it('uses the current Xtream URL and stays paused when autoplay is off', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
+        resume.setPendingResume(
+            playlist.id,
+            'https://example.com/expired-url',
+            false,
+            String(sampleChannel.xtream_id)
+        );
+        liveStreams.set([sampleChannel]);
+
+        fixture.detectChanges();
+
+        expect(component.activePlayback()?.streamUrl).toBe(
+            'https://example.com/live.ts'
+        );
+        expect(component.startPaused()).toBe(true);
+        expect(recordStarted).not.toHaveBeenCalled();
+        expect(xtreamStore.openPlayer).not.toHaveBeenCalled();
+    });
+
+    it('does not open an external Xtream player when autoplay is off', () => {
+        portalPlayer.isEmbeddedPlayer.mockReturnValue(false);
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            playlist.id,
+            'https://example.com/expired-url',
+            false,
+            String(sampleChannel.xtream_id)
+        );
+        liveStreams.set([sampleChannel]);
+
+        fixture.detectChanges();
+
+        expect(xtreamStore.openPlayer).not.toHaveBeenCalled();
+    });
+
+    it('does not remember an external channel selected without a launch', () => {
+        portalPlayer.isEmbeddedPlayer.mockReturnValue(false);
+        const recordStarted = jest
+            .spyOn(
+                TestBed.inject(PlaybackResumeService),
+                'recordPlaybackStarted'
+            )
+            .mockResolvedValue(undefined);
+
+        component.playLive(sampleChannel, false);
+        fixture.detectChanges();
+
+        expect(recordStarted).not.toHaveBeenCalled();
+        expect(xtreamStore.openPlayer).not.toHaveBeenCalled();
+    });
+
+    it('tracks the external player session and stops when it closes', () => {
+        portalPlayer.isEmbeddedPlayer.mockReturnValue(false);
+        const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
+        const recordStopped = jest
+            .spyOn(resume, 'recordPlaybackStopped')
+            .mockResolvedValue(undefined);
+
+        component.playLive(sampleChannel, true);
+        fixture.detectChanges();
+        expect(recordStarted).not.toHaveBeenCalled();
+
+        externalSession.set({
+            id: 'session-1',
+            player: 'mpv',
+            status: 'launching',
+            title: 'Sample Channel',
+            streamUrl: 'https://example.com/live.ts',
+            startedAt: '2026-10-27T00:00:00Z',
+            updatedAt: '2026-10-27T00:00:00Z',
+            canClose: true,
+        });
+        fixture.detectChanges();
+        expect(recordStarted).not.toHaveBeenCalled();
+
+        externalSession.set({ ...externalSession()!, status: 'playing' });
+        fixture.detectChanges();
+        expect(recordStarted).toHaveBeenCalledWith(
+            'xtream',
+            playlist.id,
+            'https://example.com/live.ts',
+            String(sampleChannel.xtream_id)
+        );
+
+        recordStopped.mockClear();
+        externalSession.set({ ...externalSession()!, status: 'closed' });
+        fixture.detectChanges();
+        expect(recordStopped).toHaveBeenCalled();
+    });
+
+    it('keeps the playing Xtream ID when browsing clears the selection', () => {
+        const recordStarted = jest
+            .spyOn(
+                TestBed.inject(PlaybackResumeService),
+                'recordPlaybackStarted'
+            )
+            .mockResolvedValue(undefined);
+
+        component.playLive(sampleChannel, true);
+        fixture.detectChanges();
+        selectedItem.set(null);
+        fixture.detectChanges();
+
+        expect(recordStarted).toHaveBeenLastCalledWith(
+            'xtream',
+            playlist.id,
+            'https://example.com/live.ts',
+            String(sampleChannel.xtream_id)
+        );
+    });
+
+    it('uses normal startup navigation when the loaded live catalog is empty', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            playlist.id,
+            'https://example.com/old-url',
+            true,
+            String(sampleChannel.xtream_id),
+            '/workspace/dashboard'
+        );
+        liveStreams.set([]);
+        isContentInitialized.set(true);
+        fixture.detectChanges();
+
+        expect(router.navigateByUrl).toHaveBeenCalledWith(
+            '/workspace/dashboard'
+        );
+        expect(resume.peekPendingResumeStreamUrl(playlist.id)).toBeNull();
     });
 
     it('renders the controlled epg list for electron playback', () => {

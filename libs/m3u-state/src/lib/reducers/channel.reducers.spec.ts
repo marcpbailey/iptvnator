@@ -60,6 +60,7 @@ describe('channelReducers', () => {
 
         expect(nextState.channels).toEqual([sampleChannel]);
         expect(nextState.channelsLoading).toBe(false);
+        expect(nextState.channelsLoaded).toBe(true);
     });
 
     it('clears archive playback state when a new channel becomes active', () => {

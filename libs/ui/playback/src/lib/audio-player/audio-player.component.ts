@@ -161,7 +161,7 @@ import { PlaybackHistoryConfirmation } from '../playback-history/playback-histor
 
             <audio
                 preload="metadata"
-                autoplay
+                [autoplay]="!startPaused()"
                 #audio
                 (timeupdate)="onTimeUpdate()"
             ></audio>
@@ -186,8 +186,10 @@ export class AudioPlayerComponent {
     readonly dispatchAdjacentChannelAction = input(true);
     /** The host's playback session key, for the history confirmation. */
     readonly playbackSessionKey = input<string | null>(null);
+    readonly startPaused = input(false);
     readonly channelSwitchRequested = output<'next' | 'previous'>();
     readonly volumeChange = output<number>();
+    readonly playingChange = output<boolean>();
 
     readonly playState = signal<'play' | 'paused'>('paused');
     readonly volume = signal(1);
@@ -238,7 +240,7 @@ export class AudioPlayerComponent {
             audio.volume = untracked(() => this.volume());
             audio.load();
             this.logoError.set(false);
-            this.play();
+            if (!untracked(() => this.startPaused())) this.play();
         });
 
         effect(() => {
@@ -301,13 +303,17 @@ export class AudioPlayerComponent {
         if (!audio) return;
         audio.play().catch((err) => {
             console.warn('[AudioPlayer] Audio playback failed:', err);
+            this.playState.set('paused');
+            this.playingChange.emit(false);
         });
         this.playState.set('play');
+        this.playingChange.emit(true);
     }
 
     stop() {
         this.audioRef()?.nativeElement?.pause();
         this.playState.set('paused');
+        this.playingChange.emit(false);
     }
 
     setVolume(value: number, options: { emitChange?: boolean } = {}) {

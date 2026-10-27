@@ -97,6 +97,7 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
     /** Selects a readable default only until the viewer makes a choice. */
     readonly showCaptions = input(false);
     readonly keepControlsVisible = input(false);
+    readonly startPaused = input(false);
     readonly recordingFolder = input('');
     readonly recordingMetadata = input<RecordingStartMetadata | null>(null);
     readonly seriesNavigation = input<SeriesPlaybackNavigation | null>(null);
@@ -591,7 +592,8 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
             const teardown = this.controller.startSession(
                 viewport.nativeElement,
                 playback,
-                untracked(() => this.volume())
+                untracked(() => this.volume()),
+                untracked(() => this.startPaused())
             );
             onCleanup(teardown);
         });

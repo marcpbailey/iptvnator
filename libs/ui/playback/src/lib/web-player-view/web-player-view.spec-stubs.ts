@@ -27,6 +27,7 @@ export class StubVjsPlayerComponent {
     readonly showCaptions = input(false);
     readonly interactionEnabled = input(true);
     readonly startTime = input(0);
+    readonly startPaused = input(false);
     readonly seriesNavigation = input<unknown>(null);
     readonly timeUpdate = output<PlayerTimeUpdate>();
     readonly playbackIssue = output<PlaybackDiagnostic | null>();
@@ -51,6 +52,7 @@ export class StubHtmlVideoPlayerComponent {
     readonly isLive = input(true);
     readonly interactionEnabled = input(true);
     readonly startTime = input(0);
+    readonly startPaused = input(false);
     readonly seriesNavigation = input<unknown>(null);
     readonly timeUpdate = output<PlayerTimeUpdate>();
     readonly playbackIssue = output<PlaybackDiagnostic | null>();
@@ -75,6 +77,7 @@ export class StubArtPlayerComponent {
     readonly isLive = input(true);
     readonly interactionEnabled = input(true);
     readonly startTime = input(0);
+    readonly startPaused = input(false);
     readonly seriesNavigation = input<unknown>(null);
     readonly timeUpdate = output<PlayerTimeUpdate>();
     readonly playbackIssue = output<PlaybackDiagnostic | null>();
@@ -103,6 +106,7 @@ export class StubEmbeddedMpvPlayerComponent {
     readonly showControls = input(true);
     readonly showCaptions = input(false);
     readonly keepControlsVisible = input(false);
+    readonly startPaused = input(false);
     readonly fullscreenTarget = input<HTMLElement | null>(null);
     readonly mediaTitle = input<unknown>(null);
     readonly upNext = input<unknown>(null);

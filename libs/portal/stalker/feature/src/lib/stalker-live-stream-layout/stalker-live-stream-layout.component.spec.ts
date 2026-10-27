@@ -1,12 +1,15 @@
+/* eslint-disable max-lines -- Keep startup resume interaction tests with their existing component setup. */
 import { EventEmitter, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { PortalEmptyStateComponent } from '@iptvnator/portal/shared/ui';
 import type { PlaybackFallbackRequest } from '@iptvnator/playback/util';
 import {
     LIVE_EPG_PANEL_STATE_STORAGE_KEY,
+    PORTAL_EXTERNAL_PLAYBACK,
     PORTAL_PLAYER,
 } from '@iptvnator/portal/shared/util';
 import {
@@ -26,12 +29,14 @@ import {
     ParentalLockService,
     PlaylistsService,
     RuntimeCapabilitiesService,
+    PlaybackResumeService,
     SettingsStore,
 } from '@iptvnator/services';
 import {
     ElectronBridgeApi,
     EpgItem,
     EpgProgram,
+    ExternalPlayerSession,
     ResolvedPortalPlayback,
 } from '@iptvnator/shared/interfaces';
 import { MatDialog } from '@angular/material/dialog';
@@ -117,6 +122,8 @@ describe('StalkerLiveStreamLayoutComponent', () => {
     const page = signal(0);
     const itvFullListActive = signal(false);
     const itvFullListLoading = signal(false);
+    const itvFullListUnsupported = signal(false);
+    const externalSession = signal<ExternalPlayerSession | null>(null);
     const itvFullListProgress = signal<{
         loaded: number;
         total: number;
@@ -135,6 +142,7 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         hasMoreChannels,
         itvFullListActive,
         itvFullListLoading,
+        itvFullListUnsupported,
         itvFullListProgress,
         itvFullChannelList,
         itvSelectedCategoryFromCache,
@@ -189,11 +197,13 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         openExternalPlayback: jest.fn(),
     };
     const settingsStore = {
+        updateSettings: jest.fn().mockResolvedValue(undefined),
         openStreamOnDoubleClick: signal(false),
         resolvedEpgViewMode: signal<'timeline' | 'list'>('timeline'),
         resolvedEpgOffsetMinutes: signal(0),
     };
     const originalElectron = window.electron;
+    const router = { navigateByUrl: jest.fn() };
 
     beforeEach(async () => {
         // The store mock is module-scoped: reset so a failed test can't leak
@@ -229,13 +239,17 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         page.set(0);
         itvFullListActive.set(false);
         itvFullListLoading.set(false);
+        itvFullListUnsupported.set(false);
+        externalSession.set(null);
         itvFullListProgress.set(null);
         itvFullChannelList.set([]);
         itvSelectedCategoryFromCache.set(false);
         isPaginatedContentLoading.set(false);
-        stalkerStore.preloadItvChannels.mockClear();
+        stalkerStore.preloadItvChannels.mockReset();
+        stalkerStore.preloadItvChannels.mockResolvedValue(undefined);
         localStorage.removeItem(LIVE_EPG_PANEL_STATE_STORAGE_KEY);
         settingsStore.openStreamOnDoubleClick.set(false);
+        router.navigateByUrl.mockClear();
 
         resolveItvPlayback.mockReset();
         resolveItvPlayback.mockResolvedValue({
@@ -276,6 +290,7 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         await TestBed.configureTestingModule({
             imports: [StalkerLiveStreamLayoutComponent, NoopAnimationsModule],
             providers: [
+                { provide: Router, useValue: router },
                 { provide: StalkerStore, useValue: stalkerStore },
                 {
                     provide: RuntimeCapabilitiesService,
@@ -298,6 +313,10 @@ describe('StalkerLiveStreamLayoutComponent', () => {
                     useValue: { version: signal(0), active: signal(false) },
                 },
                 { provide: PORTAL_PLAYER, useValue: portalPlayer },
+                {
+                    provide: PORTAL_EXTERNAL_PLAYBACK,
+                    useValue: { activeSession: externalSession },
+                },
                 {
                     provide: TranslateService,
                     useValue: {
@@ -371,6 +390,187 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         fixture?.destroy();
         localStorage.removeItem(LIVE_EPG_PANEL_STATE_STORAGE_KEY);
         window.electron = originalElectron;
+    });
+
+    it('reselects the saved Stalker channel by stable id', () => {
+        const channels = defaultItvChannels();
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            'https://example.com/expired-session',
+            true,
+            String(channels[1].id)
+        );
+        itvFullChannelList.set(channels);
+        const play = jest
+            .spyOn(component, 'playChannel')
+            .mockResolvedValue(undefined);
+
+        fixture.detectChanges();
+
+        expect(play).toHaveBeenCalledWith(channels[1], true, undefined, true);
+        expect(resume.peekPendingResumeStreamUrl('playlist-1')).toBeNull();
+    });
+
+    it('does not open an external Stalker player when autoplay is off', async () => {
+        portalPlayer.isEmbeddedPlayer.mockReturnValue(false);
+        const channels = defaultItvChannels();
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            'https://example.com/expired-session',
+            false,
+            String(channels[1].id)
+        );
+        itvFullChannelList.set(channels);
+
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        expect(portalPlayer.openResolvedPlayback).not.toHaveBeenCalled();
+    });
+
+    it('tracks an external Stalker session until it closes', async () => {
+        portalPlayer.isEmbeddedPlayer.mockReturnValue(false);
+        const channels = defaultItvChannels();
+        const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
+        const recordStopped = jest
+            .spyOn(resume, 'recordPlaybackStopped')
+            .mockResolvedValue(undefined);
+        externalSession.set({
+            id: 'previous-session',
+            player: 'mpv',
+            status: 'closed',
+            title: 'Previous channel',
+            streamUrl: 'https://example.com/alpha.m3u8',
+            startedAt: '2026-10-26T00:00:00Z',
+            updatedAt: '2026-10-26T00:00:00Z',
+            canClose: false,
+        });
+
+        await component.playChannel(channels[0], true);
+        fixture.detectChanges();
+        expect(recordStarted).not.toHaveBeenCalled();
+
+        externalSession.set({
+            id: 'session-1',
+            player: 'mpv',
+            status: 'launching',
+            title: 'Channel',
+            streamUrl: 'https://example.com/alpha.m3u8',
+            startedAt: '2026-10-27T00:00:00Z',
+            updatedAt: '2026-10-27T00:00:00Z',
+            canClose: true,
+        });
+        fixture.detectChanges();
+        expect(recordStarted).not.toHaveBeenCalled();
+
+        externalSession.set({ ...externalSession()!, status: 'playing' });
+        fixture.detectChanges();
+        expect(recordStarted).toHaveBeenCalledWith(
+            'stalker',
+            'playlist-1',
+            'https://example.com/alpha.m3u8',
+            String(channels[0].id)
+        );
+
+        recordStopped.mockClear();
+        externalSession.set({ ...externalSession()!, status: 'closed' });
+        fixture.detectChanges();
+        expect(recordStopped).toHaveBeenCalled();
+    });
+
+    it('uses normal startup navigation when the loaded ITV catalog is empty', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            'https://example.com/old-url',
+            true,
+            '10002',
+            '/workspace/dashboard'
+        );
+        itvFullChannelList.set([]);
+        itvFullListActive.set(true);
+
+        fixture.detectChanges();
+
+        expect(router.navigateByUrl).toHaveBeenCalledWith(
+            '/workspace/dashboard'
+        );
+        expect(resume.peekPendingResumeStreamUrl('playlist-1')).toBeNull();
+    });
+
+    it('uses normal startup navigation when full-list loading is unsupported', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            'https://example.com/old-url',
+            true,
+            '10002',
+            '/workspace/dashboard'
+        );
+        itvFullChannelList.set([]);
+        itvFullListUnsupported.set(true);
+
+        fixture.detectChanges();
+
+        expect(router.navigateByUrl).toHaveBeenCalledWith(
+            '/workspace/dashboard'
+        );
+        expect(resume.peekPendingResumeStreamUrl('playlist-1')).toBeNull();
+    });
+
+    it('uses normal startup navigation when full-list loading fails', async () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            'https://example.com/old-url',
+            true,
+            '10002',
+            '/workspace/dashboard'
+        );
+        itvFullChannelList.set([]);
+        stalkerStore.preloadItvChannels.mockResolvedValue(undefined);
+
+        fixture.detectChanges();
+        await fixture.whenStable();
+        await Promise.resolve();
+        await Promise.resolve();
+        TestBed.tick();
+        fixture.detectChanges();
+
+        expect(stalkerStore.preloadItvChannels).toHaveBeenCalled();
+
+        expect(router.navigateByUrl).toHaveBeenCalledWith(
+            '/workspace/dashboard'
+        );
+        expect(resume.peekPendingResumeStreamUrl('playlist-1')).toBeNull();
+    });
+
+    it('clears the startup pause when another channel is selected', async () => {
+        const channels = defaultItvChannels();
+        const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
+        resume.setPendingResume(
+            'playlist-1',
+            'https://example.com/expired-session',
+            false,
+            String(channels[0].id)
+        );
+        itvFullChannelList.set(channels);
+        fixture.detectChanges();
+        await fixture.whenStable();
+        expect(component.startPaused()).toBe(true);
+        expect(recordStarted).not.toHaveBeenCalled();
+
+        await component.playChannel(channels[1], true);
+
+        expect(component.startPaused()).toBe(false);
     });
 
     it('renders the controlled epg list and removes the load-more button', () => {

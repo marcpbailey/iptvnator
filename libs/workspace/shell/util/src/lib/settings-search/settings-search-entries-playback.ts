@@ -56,6 +56,21 @@ export const PLAYBACK_SETTINGS_SEARCH_ENTRIES: readonly SettingsSearchEntry[] =
             fallbackId: 'video-player',
         },
         {
+            id: 'remember-last-channel',
+            section: 'playback',
+            labelKey: 'SETTINGS.REMEMBER_LAST_CHANNEL',
+            descriptionKey: 'SETTINGS.REMEMBER_LAST_CHANNEL_DESCRIPTION',
+            keywords: ['last channel', 'resume', 'startup'],
+        },
+        {
+            id: 'autoplay-on-relaunch',
+            section: 'playback',
+            labelKey: 'SETTINGS.AUTOPLAY_ON_RELAUNCH',
+            descriptionKey: 'SETTINGS.AUTOPLAY_ON_RELAUNCH_DESCRIPTION',
+            keywords: ['autoplay', 'relaunch', 'resume'],
+            fallbackId: 'remember-last-channel',
+        },
+        {
             id: 'embedded-mpv-frame-copy',
             section: 'playback',
             labelKey: 'SETTINGS.EMBEDDED_MPV_FRAME_COPY',

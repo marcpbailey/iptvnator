@@ -5,6 +5,7 @@ import {
     selectActiveEpgProgram,
     selectActivePlaybackUrl,
     selectChannels,
+    selectChannelsLoaded,
     selectChannelsLoading,
     selectCurrentEpgProgram,
     selectFavorites,
@@ -29,6 +30,7 @@ export const playlistId = signal('playlist-1');
 export const activeChannel = signal<Channel | null>(null);
 export const activePlaybackUrl = signal<string | null>(null);
 export const channels = signal<Channel[]>([]);
+export const channelsLoaded = signal(false);
 export const channelsLoading = signal(false);
 export const currentEpgProgram = signal<EpgProgram | null>(null);
 export const activeEpgProgram = signal<EpgProgram | null>(null);
@@ -65,6 +67,8 @@ export const storeMock = {
                 return activePlaybackUrl;
             case selectChannels:
                 return channels;
+            case selectChannelsLoaded:
+                return channelsLoaded;
             case selectChannelsLoading:
                 return channelsLoading;
             case selectCurrentEpgProgram:
@@ -96,6 +100,7 @@ export const storeMock = {
 export const routerMock = {
     url: '/workspace/playlists/playlist-1/all',
     navigate: jest.fn(),
+    navigateByUrl: jest.fn(),
     currentNavigation: jest.fn().mockReturnValue(null),
 };
 

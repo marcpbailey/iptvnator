@@ -95,6 +95,8 @@ export const DEFAULT_SETTINGS = {
     streamFormat: StreamFormat.AutoStreamFormat,
     openStreamOnDoubleClick: false,
     loopMode: 'disabled',
+    rememberLastChannel: false,
+    autoplayOnRelaunch: false,
     language: Language.ENGLISH,
     showCaptions: false,
     showDashboard: true,

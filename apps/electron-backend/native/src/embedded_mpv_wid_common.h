@@ -208,6 +208,7 @@ struct Session {
 #ifdef __linux__
     pid_t mpvProcessId = -1;
     std::string mpvIpcSocketPath;
+    bool requestedPaused = false;
     int64_t mpvTrackListCount = -1;
 #endif
 };
@@ -655,12 +656,14 @@ std::vector<std::string> buildLinuxMpvArguments(
     arguments.push_back("--vo=gpu,x11");
     arguments.push_back("--gpu-context=x11egl");
 
+    bool requestedPaused = false;
     {
         std::lock_guard<std::mutex> lock(session->mutex);
         arguments.push_back(
             "--volume=" +
                 formatInvariantDouble(session->snapshot.volumePercent)
         );
+        requestedPaused = session->requestedPaused;
     }
 
     if (std::getenv("IPTVNATOR_TRACE_EMBEDDED_MPV")) {
@@ -674,6 +677,9 @@ std::vector<std::string> buildLinuxMpvArguments(
     // playlist's own user-agent/headers still win over a global line.
     for (const auto& option : session->extraOptions) {
         arguments.push_back("--" + option.first + "=" + option.second);
+    }
+    if (requestedPaused) {
+        arguments.push_back("--pause");
     }
 
     appendLinuxMpvOption(arguments, "force-media-title", title);
@@ -2192,6 +2198,7 @@ Napi::Value SetPaused(const Napi::CallbackInfo& info)
     {
         std::lock_guard<std::mutex> lock(session->mutex);
         socketPath = session->mpvIpcSocketPath;
+        session->requestedPaused = paused != 0;
         // Optimistic only while playing/paused: a load in flight or a
         // finished/failed stream keeps its status until the poller says
         // otherwise, like the in-process engines' pause handling.

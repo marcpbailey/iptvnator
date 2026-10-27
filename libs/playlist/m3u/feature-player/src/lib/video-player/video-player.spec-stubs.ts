@@ -100,6 +100,7 @@ export class StubAudioPlayerComponent {
     readonly channelLogo = input('');
     readonly volume = input<number | null>(null);
     readonly playbackSessionKey = input<string | null>(null);
+    readonly startPaused = input(false);
     readonly volumeChange = output<number>();
 }
 
@@ -118,6 +119,8 @@ export class StubWebPlayerViewComponent {
     readonly showEmbeddedMpvControls = input(true);
     readonly timelineSegments = input<unknown>(null);
     readonly recordingMetadata = input<RecordingStartMetadata | null>(null);
+    readonly startPaused = input(false);
+    readonly timeUpdate = output<{ playing?: boolean }>();
     readonly externalFallbackRequested = output<PlaybackFallbackRequest>();
     readonly recordingStopped = output<RecordingStoppedEvent>();
 }

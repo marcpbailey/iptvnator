@@ -42,6 +42,7 @@ import {
     ParentalLockService,
     PlaylistsService,
     RecordingsService,
+    PlaybackResumeService,
     RuntimeCapabilitiesService,
     SettingsStore,
     injectTranslationTick,
@@ -83,7 +84,9 @@ import { LiveEpgPanelSummary } from '@iptvnator/ui/shared-portals';
 import { EpgRuntimeBridgeService } from '@iptvnator/epg/data-access';
 import {
     createLivePanelsController,
+    isLiveExternalPlayerSession,
     LiveLayoutSidebarStateService,
+    PORTAL_EXTERNAL_PLAYBACK,
     PORTAL_PLAYER,
     createLogger,
     isTypingInInput,
@@ -197,6 +200,10 @@ export class StalkerLiveStreamLayoutComponent
     private readonly runtime = inject(RuntimeCapabilitiesService);
     private readonly settingsStore = inject(SettingsStore);
     private readonly portalPlayer = inject(PORTAL_PLAYER);
+    private readonly externalPlayback = inject(PORTAL_EXTERNAL_PLAYBACK, {
+        optional: true,
+    });
+    private readonly playbackResumeService = inject(PlaybackResumeService);
     private readonly streamHeaders = inject(ElectronStreamHeadersService);
     private readonly snackBar = inject(MatSnackBar);
     private readonly translate = inject(TranslateService);
@@ -656,8 +663,139 @@ export class StalkerLiveStreamLayoutComponent
         promise: Promise<ResolvedPortalPlayback>;
     } | null = null;
     private lastPlaylistId: string | null | undefined = undefined;
+    private pendingResumeConsumed = false;
+    private resumePreloadStarted = false;
+    private readonly resumePreloadSettled = signal(false);
+    private readonly externalResumeTarget = signal<{
+        sourceId: string;
+        channelId: string;
+        streamUrl: string;
+        previousSessionId: string | null;
+    } | null>(null);
+    private readonly isActivelyPlaying = signal(true);
+    private readonly resumeTargetChannelId = signal<string | null>(null);
+    private readonly router = inject(Router, { optional: true });
+    readonly startPaused = computed(
+        () =>
+            this.resumeTargetChannelId() !== null &&
+            this.resumeTargetChannelId() === this.selectedChannelId()
+    );
+
+    onPlayingStateChanged(playing: boolean | undefined): void {
+        if (playing !== undefined) this.isActivelyPlaying.set(playing);
+        if (playing) this.resumeTargetChannelId.set(null);
+    }
 
     constructor() {
+        effect(() => {
+            if (this.pendingResumeConsumed || this.isRadioMode()) return;
+            const playlistId = this.stalkerStore.currentPlaylist()?._id;
+            if (!playlistId) return;
+            const url =
+                this.playbackResumeService.peekPendingResumeStreamUrl(
+                    playlistId
+                );
+            if (url === null) return;
+            const channelId =
+                this.playbackResumeService.peekPendingResumeChannelId(
+                    playlistId
+                );
+            const channels = this.itvFullChannelList();
+            if (!channels.length && !this.stalkerStore.itvFullListActive()) {
+                if (!this.resumePreloadStarted) {
+                    this.resumePreloadStarted = true;
+                    void Promise.resolve()
+                        .then(() => this.stalkerStore.preloadItvChannels())
+                        .then(
+                            () => this.resumePreloadSettled.set(true),
+                            () => this.resumePreloadSettled.set(true)
+                        );
+                }
+                if (
+                    this.stalkerStore.itvFullListLoading() ||
+                    (!this.stalkerStore.itvFullListUnsupported() &&
+                        !this.resumePreloadSettled())
+                )
+                    return;
+            }
+            const target = channelId
+                ? channels.find(
+                      (item) => normalizeStalkerEntityId(item.id) === channelId
+                  )
+                : null;
+            this.pendingResumeConsumed = true;
+            const shouldAutoplay =
+                this.playbackResumeService.peekPendingResumeShouldAutoplay(
+                    playlistId
+                );
+            const fallbackPath =
+                this.playbackResumeService.peekPendingResumeFallbackPath(
+                    playlistId
+                );
+            this.playbackResumeService.clearPendingResume();
+            if (!target) {
+                if (fallbackPath) void this.router?.navigateByUrl(fallbackPath);
+                return;
+            }
+            if (!shouldAutoplay)
+                this.resumeTargetChannelId.set(
+                    normalizeStalkerEntityId(target.id)
+                );
+            void this.playChannel(target, shouldAutoplay, undefined, true);
+        });
+
+        effect(() => {
+            if (this.isRadioMode()) {
+                void this.playbackResumeService.recordPlaybackStopped();
+                return;
+            }
+            if (!this.usesEmbeddedPlayer()) return;
+            const playback = this.activePlayback();
+            const playlistId = this.stalkerStore.currentPlaylist()?._id;
+            const channelId = this.selectedChannelId();
+            if (!playback || !playlistId || !channelId) return;
+            if (this.isActivelyPlaying() && !this.startPaused()) {
+                void this.playbackResumeService.recordPlaybackStarted(
+                    'stalker',
+                    playlistId,
+                    playback.streamUrl,
+                    channelId
+                );
+            } else {
+                void this.playbackResumeService.recordPlaybackStopped();
+            }
+        });
+
+        effect(() => {
+            const target = this.externalResumeTarget();
+            if (!target || this.isRadioMode() || this.usesEmbeddedPlayer())
+                return;
+            const session = this.externalPlayback?.activeSession();
+            const matchesSession =
+                session?.id !== target.previousSessionId &&
+                session?.streamUrl === target.streamUrl;
+            if (
+                matchesSession &&
+                isLiveExternalPlayerSession(session) &&
+                session.status !== 'launching'
+            ) {
+                void this.playbackResumeService.recordPlaybackStarted(
+                    'stalker',
+                    target.sourceId,
+                    target.streamUrl,
+                    target.channelId
+                );
+            } else {
+                void this.playbackResumeService.recordPlaybackStopped();
+                if (
+                    matchesSession &&
+                    session &&
+                    !isLiveExternalPlayerSession(session)
+                )
+                    this.externalResumeTarget.set(null);
+            }
+        });
+
         this.epgClockTimer = setInterval(
             () => this.epgClockTick.update((tick) => tick + 1),
             30_000
@@ -904,6 +1042,7 @@ export class StalkerLiveStreamLayoutComponent
     }
 
     ngOnDestroy() {
+        void this.playbackResumeService.recordPlaybackStopped();
         this.navigation.reset();
         this.unsubscribeRemoteChannelChange?.();
         this.unsubscribeRemoteCommand?.();
@@ -940,8 +1079,10 @@ export class StalkerLiveStreamLayoutComponent
     async playChannel(
         item: StalkerItvChannel,
         startPlayback = !this.settingsStore.openStreamOnDoubleClick(),
-        navigationContext?: Signal<string> | 'preserve'
+        navigationContext?: Signal<string> | 'preserve',
+        restoring = false
     ) {
+        if (!restoring) this.resumeTargetChannelId.set(null);
         const commitNavigation = this.navigation.prepare(
             item,
             navigationContext
@@ -1029,6 +1170,15 @@ export class StalkerLiveStreamLayoutComponent
                     contentId: channelId,
                 });
             } else if (startPlayback) {
+                if (sourceId && channelId) {
+                    this.externalResumeTarget.set({
+                        sourceId,
+                        channelId,
+                        streamUrl: playback.streamUrl,
+                        previousSessionId:
+                            this.externalPlayback?.activeSession()?.id ?? null,
+                    });
+                }
                 void this.portalPlayer.openResolvedPlayback(playback, true);
             }
         } catch (error) {

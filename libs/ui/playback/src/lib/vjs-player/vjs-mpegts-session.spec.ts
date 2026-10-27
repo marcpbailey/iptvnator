@@ -64,6 +64,18 @@ describe('VjsMpegTsSession', () => {
         expect(mpegTsPlayer.play).toHaveBeenCalledTimes(1);
     });
 
+    it('loads a remembered transport stream without starting it', () => {
+        const mpegTsPlayer = createMpegTsPlayer();
+        createPlayerMock.mockReturnValue(mpegTsPlayer);
+        const video = document.createElement('video');
+        const { session } = createSession({ startPaused: true });
+
+        session.start('https://example.test/live/stream.ts', video);
+
+        expect(mpegTsPlayer.load).toHaveBeenCalledTimes(1);
+        expect(mpegTsPlayer.play).not.toHaveBeenCalled();
+    });
+
     it('handles an asynchronous autoplay rejection', () => {
         const catchRejection = jest.fn();
         const mpegTsPlayer = createMpegTsPlayer();
@@ -240,7 +252,9 @@ describe('VjsMpegTsSession', () => {
     });
 });
 
-function createSession(options: { isLive?: boolean } = {}) {
+function createSession(
+    options: { isLive?: boolean; startPaused?: boolean } = {}
+) {
     let currentDuration = Number.POSITIVE_INFINITY;
     const duration = jest.fn((value?: number) => {
         if (value !== undefined) {
@@ -252,6 +266,7 @@ function createSession(options: { isLive?: boolean } = {}) {
     const session = new VjsMpegTsSession({
         player: () => ({ duration }),
         isLive: () => options.isLive ?? true,
+        startPaused: () => options.startPaused ?? false,
         emitPlaybackIssue,
     });
 

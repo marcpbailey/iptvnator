@@ -23,6 +23,19 @@ describe('Video.js player setup', () => {
         });
     });
 
+    it('keeps autoplay disabled for a remembered paused channel', () => {
+        expect(
+            createVjsPlayerOptions(
+                {
+                    sources: [{ src: 'https://example.test/live.m3u8' }],
+                    autoplay: false,
+                },
+                false,
+                true
+            ).autoplay
+        ).toBe(false);
+    });
+
     it('keeps Video.js controls enabled on the raw MPEG-TS legacy path', () => {
         // player.reset() replaces the tech <video>, so the control bar must
         // come from the constructor option — a template binding on the
