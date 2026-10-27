@@ -115,4 +115,5 @@ export class StubEmbeddedMpvPlayerComponent {
     readonly previousEpisodeRequested = output<void>();
     readonly nextEpisodeRequested = output<void>();
     readonly recordingStopped = output<RecordingStoppedEvent>();
+    readonly retryRequested = output<void>();
 }

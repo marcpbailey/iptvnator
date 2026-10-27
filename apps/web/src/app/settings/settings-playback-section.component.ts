@@ -71,6 +71,7 @@ export class SettingsPlaybackSectionComponent {
     readonly frameCopyAvailable = input(false);
     /** Frame-copy engine is what the current app run actually uses */
     readonly frameCopyActive = input(false);
+    readonly programLoopAvailable = input(false);
     readonly supportsManagedExternalPlayers = input(false);
     readonly supportsExternalPlayerPathSettings = input(false);
     /**

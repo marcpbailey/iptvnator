@@ -847,6 +847,74 @@ describe('WebPlayerViewComponent', () => {
         }
     );
 
+    it('reopens a live channel after playback ends when channel looping is selected', async () => {
+        await TestBed.inject(SettingsStore).updateSettings({
+            loopMode: 'channel',
+        });
+        fixture.detectChanges();
+        const events: string[] = [];
+        component.playbackEnded.subscribe(() => events.push('ended'));
+
+        component.onPlayerPlaybackEnded();
+
+        expect(events).toEqual(['ended']);
+        expect(component.reloadToken()).toBe(1);
+    });
+
+    it('stops reopening after repeated immediate live endings', async () => {
+        await TestBed.inject(SettingsStore).updateSettings({
+            loopMode: 'channel',
+        });
+        fixture.detectChanges();
+
+        for (let index = 0; index < 5; index += 1) {
+            component.onPlayerPlaybackEnded();
+        }
+        expect(component.reloadToken()).toBe(3);
+        component.retryPlayback();
+        component.onPlayerPlaybackEnded();
+        expect(component.reloadToken()).toBeGreaterThan(3);
+    });
+
+    it('resumes channel looping after an embedded MPV retry', async () => {
+        await TestBed.inject(SettingsStore).updateSettings({
+            loopMode: 'channel',
+        });
+        fixture.componentRef.setInput(
+            'playerOverride',
+            VideoPlayer.EmbeddedMpv
+        );
+        fixture.detectChanges();
+        const player = fixture.debugElement.query(
+            By.directive(StubEmbeddedMpvPlayerComponent)
+        ).componentInstance as StubEmbeddedMpvPlayerComponent;
+
+        for (let index = 0; index < 5; index += 1) {
+            component.onPlayerPlaybackEnded();
+        }
+        expect(component.reloadToken()).toBe(3);
+
+        player.retryRequested.emit();
+        component.onPlayerPlaybackEnded();
+        expect(component.reloadToken()).toBe(4);
+    });
+
+    it('does not loop a movie', async () => {
+        await TestBed.inject(SettingsStore).updateSettings({
+            loopMode: 'channel',
+        });
+        fixture.componentRef.setInput('playback', {
+            streamUrl: 'https://example.com/archive/movie.mkv',
+            title: 'Example Movie',
+            isLive: false,
+        });
+        fixture.detectChanges();
+
+        component.onPlayerPlaybackEnded();
+
+        expect(component.reloadToken()).toBe(0);
+    });
+
     it('uses the PWA browser access diagnostic description key outside desktop', () => {
         const issue = createBrowserAccessDiagnostic();
 

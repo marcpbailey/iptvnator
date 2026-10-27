@@ -72,6 +72,7 @@ function createForm(player: VideoPlayer): FormGroup {
     return new FormGroup({
         player: new FormControl(player),
         webPlayerSharedControls: new FormControl(false),
+        loopMode: new FormControl('disabled'),
         playerAmbientMode: new FormControl(false),
         detailTrailerBackdrop: new FormControl(false),
         showCaptions: new FormControl(false),

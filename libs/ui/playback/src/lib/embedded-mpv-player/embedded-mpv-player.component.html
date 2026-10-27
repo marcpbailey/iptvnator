@@ -275,7 +275,9 @@
                                     class="embedded-mpv-player__live-dot"
                                     aria-hidden="true"
                                 ></span>
-                                {{ 'EMBEDDED_MPV.PLAYER.LIVE_BADGE' | translate }}
+                                {{
+                                    'EMBEDDED_MPV.PLAYER.LIVE_BADGE' | translate
+                                }}
                             </span>
                         } @else {
                             <span
@@ -407,6 +409,26 @@
                             }}</mat-icon>
                         </button>
                     }
+
+                    <button
+                        mat-icon-button
+                        type="button"
+                        class="embedded-mpv-player__control-button"
+                        data-test-id="embedded-mpv-loop-mode"
+                        (click)="cycleLoopMode()"
+                        [attr.aria-pressed]="loopMode() !== 'disabled'"
+                        [attr.aria-label]="
+                            ('SETTINGS.LOOP_MODE' | translate) +
+                            ': ' +
+                            (loopModeLabelKey() | translate)
+                        "
+                        [matTooltip]="loopModeLabelKey() | translate"
+                        matTooltipPosition="above"
+                    >
+                        <mat-icon>{{
+                            loopMode() === 'program' ? 'repeat_one' : 'repeat'
+                        }}</mat-icon>
+                    </button>
 
                     @if (capabilities().playbackSpeed) {
                         <button
