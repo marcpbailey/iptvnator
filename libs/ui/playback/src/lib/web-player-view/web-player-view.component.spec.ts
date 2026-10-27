@@ -876,6 +876,29 @@ describe('WebPlayerViewComponent', () => {
         expect(component.reloadToken()).toBeGreaterThan(3);
     });
 
+    it('resumes channel looping after an embedded MPV retry', async () => {
+        await TestBed.inject(SettingsStore).updateSettings({
+            loopMode: 'channel',
+        });
+        fixture.componentRef.setInput(
+            'playerOverride',
+            VideoPlayer.EmbeddedMpv
+        );
+        fixture.detectChanges();
+        const player = fixture.debugElement.query(
+            By.directive(StubEmbeddedMpvPlayerComponent)
+        ).componentInstance as StubEmbeddedMpvPlayerComponent;
+
+        for (let index = 0; index < 5; index += 1) {
+            component.onPlayerPlaybackEnded();
+        }
+        expect(component.reloadToken()).toBe(3);
+
+        player.retryRequested.emit();
+        component.onPlayerPlaybackEnded();
+        expect(component.reloadToken()).toBe(4);
+    });
+
     it('does not loop a movie', async () => {
         await TestBed.inject(SettingsStore).updateSettings({
             loopMode: 'channel',

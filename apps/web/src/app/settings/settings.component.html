@@ -67,6 +67,10 @@
                                 embeddedMpv.frameCopyAvailable()
                             "
                             [frameCopyActive]="embeddedMpv.frameCopyActive()"
+                            [programLoopAvailable]="
+                                embeddedMpv.support()?.capabilities?.loop ??
+                                false
+                            "
                             (selectRecordingFolder)="selectRecordingFolder()"
                         />
                     }
@@ -205,7 +209,10 @@
                     class="unsaved-bar__message"
                     data-test-id="settings-unsaved-message"
                 >
-                    {{ unsavedMessageKey() | translate: { count: changeCount() } }}
+                    {{
+                        unsavedMessageKey()
+                            | translate: { count: changeCount() }
+                    }}
                 </span>
                 <div class="unsaved-bar__actions">
                     <button

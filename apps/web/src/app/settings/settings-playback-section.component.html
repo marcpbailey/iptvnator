@@ -147,9 +147,16 @@
                             <mat-option value="disabled">{{
                                 'SETTINGS.LOOP_MODE_DISABLED' | translate
                             }}</mat-option>
-                            <mat-option value="program">{{
-                                'SETTINGS.LOOP_MODE_PROGRAM' | translate
-                            }}</mat-option>
+                            <mat-option
+                                value="program"
+                                [disabled]="
+                                    !isEmbeddedMpvSelected() ||
+                                    !programLoopAvailable()
+                                "
+                                >{{
+                                    'SETTINGS.LOOP_MODE_PROGRAM' | translate
+                                }}</mat-option
+                            >
                             <mat-option value="channel">{{
                                 'SETTINGS.LOOP_MODE_CHANNEL' | translate
                             }}</mat-option>

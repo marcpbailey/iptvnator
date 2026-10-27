@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { By } from '@angular/platform-browser';
+import { MatSelect } from '@angular/material/select';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { StreamFormat, VideoPlayer } from '@iptvnator/shared/interfaces';
 import { SettingsPlaybackSectionComponent } from './settings-playback-section.component';
@@ -76,6 +78,27 @@ describe('SettingsPlaybackSectionComponent', () => {
         expect(fixture.nativeElement.textContent).not.toContain(
             'SETTINGS.OPEN_STREAM_ON_DOUBLE_CLICK'
         );
+    });
+
+    it('offers programme looping only for an embedded MPV engine that supports it', () => {
+        const form = createForm(VideoPlayer.EmbeddedMpv);
+        fixture.componentRef.setInput('form', form);
+        fixture.detectChanges();
+        const select = fixture.debugElement.query(
+            By.css('[data-test-id="select-loop-mode"]')
+        ).componentInstance as MatSelect;
+        const program = select.options.find(
+            (option) => option.value === 'program'
+        );
+        expect(program?.disabled).toBe(true);
+
+        fixture.componentRef.setInput('programLoopAvailable', true);
+        fixture.detectChanges();
+        expect(program?.disabled).toBe(false);
+
+        form.get('player')?.setValue(VideoPlayer.VideoJs);
+        fixture.detectChanges();
+        expect(program?.disabled).toBe(true);
     });
 
     it('hides the external-player double-click option for embedded players', () => {
@@ -464,7 +487,9 @@ function createForm(player = VideoPlayer.VideoJs): FormGroup {
         fullscreenChannelPanel: new FormControl(true),
         streamFormat: new FormControl(StreamFormat.AutoStreamFormat),
         openStreamOnDoubleClick: new FormControl(false),
-        loopMode: new FormControl<'disabled' | 'program' | 'channel'>('disabled'),
+        loopMode: new FormControl<'disabled' | 'program' | 'channel'>(
+            'disabled'
+        ),
         showExternalPlaybackBar: new FormControl(true),
         embeddedMpvFrameCopy: new FormControl(false),
         mpvPlayerPath: new FormControl(''),

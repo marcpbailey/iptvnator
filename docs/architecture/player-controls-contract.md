@@ -12,7 +12,8 @@ Embedded MPV rendering and native-view bounds behavior remain documented in
 `Settings.loopMode` stores `disabled`, `program`, or `channel`, with `disabled`
 as the default. The Playback settings selector changes this preference. When
 the native MPV addon reports loop support, the embedded MPV control button
-cycles through the same values. `program` sets MPV `loop-file` for the current
+cycles through the same values. Otherwise the button cycles between disabled
+and channel, and Settings disables the programme option. `program` sets MPV `loop-file` for the current
 stream. `channel` reopens a live channel after an ended event through
 `WebPlayerViewComponent`; it does not replay VOD or catch-up content. A channel
 that ends three times quickly stops reopening until its URL changes or the

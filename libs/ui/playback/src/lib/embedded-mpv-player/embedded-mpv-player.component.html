@@ -409,31 +409,25 @@
                         </button>
                     }
 
-                    @if (capabilities().loop) {
-                        <button
-                            mat-icon-button
-                            type="button"
-                            class="embedded-mpv-player__control-button"
-                            data-test-id="embedded-mpv-loop-mode"
-                            (click)="cycleLoopMode()"
-                            [attr.aria-pressed]="loopMode() !== 'disabled'"
-                            [attr.aria-label]="
-                                ('SETTINGS.LOOP_MODE' | translate) +
-                                ': ' +
-                                (loopModeLabelKey() | translate)
-                            "
-                            [matTooltip]="
-                                loopModeLabelKey() | translate
-                            "
-                            matTooltipPosition="above"
-                        >
-                            <mat-icon>{{
-                                loopMode() === 'program'
-                                    ? 'repeat_one'
-                                    : 'repeat'
-                            }}</mat-icon>
-                        </button>
-                    }
+                    <button
+                        mat-icon-button
+                        type="button"
+                        class="embedded-mpv-player__control-button"
+                        data-test-id="embedded-mpv-loop-mode"
+                        (click)="cycleLoopMode()"
+                        [attr.aria-pressed]="loopMode() !== 'disabled'"
+                        [attr.aria-label]="
+                            ('SETTINGS.LOOP_MODE' | translate) +
+                            ': ' +
+                            (loopModeLabelKey() | translate)
+                        "
+                        [matTooltip]="loopModeLabelKey() | translate"
+                        matTooltipPosition="above"
+                    >
+                        <mat-icon>{{
+                            loopMode() === 'program' ? 'repeat_one' : 'repeat'
+                        }}</mat-icon>
+                    </button>
 
                     @if (capabilities().playbackSpeed) {
                         <button

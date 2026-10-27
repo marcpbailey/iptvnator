@@ -102,6 +102,7 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
     readonly nextEpisodeRequested = output<void>();
     /** Clean recording stop — the host answers with EPG stop enrichment. */
     readonly recordingStopped = output<RecordingStoppedEvent>();
+    readonly retryRequested = output<void>();
 
     private readonly overlayVisibility = inject(
         EmbeddedMpvOverlayVisibilityService
@@ -566,9 +567,14 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
             const loop = this.loopMode() === 'program';
             if (id) {
                 untracked(() => {
-                    void this.controller.setLoop(loop).catch((error) =>
-                        console.warn('Could not set embedded MPV loop mode.', error)
-                    );
+                    void this.controller
+                        .setLoop(loop)
+                        .catch((error) =>
+                            console.warn(
+                                'Could not set embedded MPV loop mode.',
+                                error
+                            )
+                        );
                 });
             }
         });
@@ -803,7 +809,9 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
         const current = this.loopMode();
         const next =
             current === 'disabled'
-                ? 'program'
+                ? this.capabilities().loop
+                    ? 'program'
+                    : 'channel'
                 : current === 'program'
                   ? 'channel'
                   : 'disabled';
@@ -901,6 +909,7 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
     }
 
     retry(): void {
+        this.retryRequested.emit();
         this.controller.retry();
     }
 
