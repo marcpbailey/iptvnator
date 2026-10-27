@@ -58,6 +58,7 @@ describe('M3uEpgGuideSourceService', () => {
         undefined
     );
     const archiveCopy = { copy: jest.fn() };
+    const epgOffsetMinutes = signal(0);
     const getProgramsForChannels = jest.fn();
     const getProgramCoverage = jest.fn();
     const searchPrograms = jest.fn();
@@ -73,6 +74,7 @@ describe('M3uEpgGuideSourceService', () => {
             }
         });
         archiveCopy.copy.mockReset();
+        epgOffsetMinutes.set(0);
         getProgramsForChannels.mockReset();
         getProgramCoverage.mockReset();
         searchPrograms.mockReset();
@@ -111,7 +113,10 @@ describe('M3uEpgGuideSourceService', () => {
                 },
                 {
                     provide: SettingsStore,
-                    useValue: { stripCountryPrefix: signal(false) },
+                    useValue: {
+                        stripCountryPrefix: signal(false),
+                        resolvedEpgOffsetMinutes: epgOffsetMinutes,
+                    },
                 },
                 {
                     provide: TranslateService,
@@ -275,6 +280,40 @@ describe('M3uEpgGuideSourceService', () => {
             service.catchUp.canWatch(
                 row,
                 scheduled(nowMs - 8 * 24 * 60 * 60_000)
+            )
+        ).toBe(false);
+    });
+
+    it('applies the display offset when checking archive retention', () => {
+        const channel = makeChannel('archive', {
+            catchup: {
+                type: 'default',
+                source: 'https://archive.example.com/channel',
+                days: '7',
+            },
+        });
+        channels.set([channel]);
+        const row = service.channels()[0];
+        const nowMs = Date.now();
+        const scheduled = (startMs: number) => ({
+            ...program('archive'),
+            start: new Date(startMs).toISOString(),
+            startTimestamp: Math.floor(startMs / 1000),
+        });
+
+        epgOffsetMinutes.set(60);
+        expect(
+            service.catchUp.canWatch(
+                row,
+                scheduled(nowMs - 7 * 24 * 60 * 60_000 - 30 * 60_000)
+            )
+        ).toBe(true);
+
+        epgOffsetMinutes.set(-60);
+        expect(
+            service.catchUp.canWatch(
+                row,
+                scheduled(nowMs - 7 * 24 * 60 * 60_000 + 30 * 60_000)
             )
         ).toBe(false);
     });

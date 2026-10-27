@@ -313,7 +313,8 @@ export class M3uEpgGuideSourceService implements EpgGuideSource {
         }
         const startMs = getProgramTimeMs(
             program.start,
-            program.startTimestamp
+            program.startTimestamp,
+            this.settingsStore.resolvedEpgOffsetMinutes()
         );
         const nowMs = Date.now();
         return (
