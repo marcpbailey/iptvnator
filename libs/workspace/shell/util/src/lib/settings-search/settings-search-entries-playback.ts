@@ -30,6 +30,14 @@ export const PLAYBACK_SETTINGS_SEARCH_ENTRIES: readonly SettingsSearchEntry[] =
             fallbackId: 'video-player',
         },
         {
+            id: 'loop-mode',
+            section: 'playback',
+            labelKey: 'SETTINGS.LOOP_MODE',
+            descriptionKey: 'SETTINGS.LOOP_MODE_DESCRIPTION',
+            keywords: ['loop', 'repeat', 'programme', 'channel'],
+            fallbackId: 'video-player',
+        },
+        {
             id: 'player-ambient-mode',
             section: 'playback',
             labelKey: 'SETTINGS.PLAYER_AMBIENT_MODE',

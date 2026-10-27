@@ -152,6 +152,7 @@ describe('SettingsSearchService', () => {
 
         expect(entries).toContain('epg-view-mode');
         expect(entries).toContain('remote-control-port');
+        expect(entries).toContain('loop-mode');
         expect(entries).toContain('mpv-player-path');
         expect(entries).not.toContain('vod-auto-failover');
         // Embedded MPV rows wait for the support probe.
