@@ -120,6 +120,47 @@ describe('EmbeddedMpvPlayerComponent series navigation', () => {
         fixture.destroy();
     });
 
+    it('does not resend an unchanged loop setting after a session snapshot', async () => {
+        let calls = 0;
+        const setLoop = jest
+            .spyOn(controller, 'setLoop')
+            .mockImplementation(async () => {
+                calls++;
+                const session = controller.session();
+                if (session && calls < 4) {
+                    controller.session.set({
+                        ...session,
+                        updatedAt: `2026-06-06T12:00:0${calls}Z`,
+                    });
+                }
+            });
+
+        controller.sessionId.set('session-1');
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        expect(setLoop).toHaveBeenCalledTimes(1);
+        expect(setLoop).toHaveBeenCalledWith(false);
+    });
+
+    it('skips programme loop mode when the MPV engine cannot repeat files', async () => {
+        configureReadyController();
+        player.cycleLoopMode();
+        await fixture.whenStable();
+        expect(player.loopMode()).toBe('channel');
+    });
+
+    it('reports an embedded MPV retry to its parent', () => {
+        const requested = jest.fn();
+        player.retryRequested.subscribe(requested);
+        jest.spyOn(controller, 'retry').mockImplementation();
+
+        player.retry();
+
+        expect(requested).toHaveBeenCalledTimes(1);
+        expect(controller.retry).toHaveBeenCalledTimes(1);
+    });
+
     it('renders previous and next episode controls with season boundary disabled state', () => {
         const previousButton = fixture.debugElement.query(
             By.css('[data-test-id="embedded-mpv-previous-episode"]')

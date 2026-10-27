@@ -17,7 +17,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
-import { injectTranslationTick } from '@iptvnator/services';
+import { injectTranslationTick, SettingsStore } from '@iptvnator/services';
 import {
     EmbeddedMpvAudioTrack,
     RecordingStartMetadata,
@@ -102,11 +102,13 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
     readonly nextEpisodeRequested = output<void>();
     /** Clean recording stop — the host answers with EPG stop enrichment. */
     readonly recordingStopped = output<RecordingStoppedEvent>();
+    readonly retryRequested = output<void>();
 
     private readonly overlayVisibility = inject(
         EmbeddedMpvOverlayVisibilityService
     );
     private readonly translate = inject(TranslateService);
+    private readonly settingsStore = inject(SettingsStore);
     /**
      * Ticks when the active language or a loaded translation file changes.
      * translate.instant() is invisible to the signal graph, so every
@@ -140,7 +142,10 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
     /** Catch-up programmes first, else the file's chapters; see the helper. */
     readonly controlsTimelineSegments = computed(
         () =>
-            embeddedMpvTimelineSegments(this.timelineSegments(), this.session()),
+            embeddedMpvTimelineSegments(
+                this.timelineSegments(),
+                this.session()
+            ),
         { equal: sameTimelineSegments }
     );
     readonly stalled = this.controller.stalled;
@@ -149,6 +154,17 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
     readonly isFullscreen = signal(false);
     readonly controlsVisible = signal(true);
 
+    readonly loopMode = computed(
+        () => this.settingsStore.loopMode?.() ?? 'disabled'
+    );
+    readonly loopModeLabelKey = computed(() => {
+        const mode = this.loopMode();
+        return mode === 'program'
+            ? 'SETTINGS.LOOP_MODE_PROGRAM'
+            : mode === 'channel'
+              ? 'SETTINGS.LOOP_MODE_CHANNEL'
+              : 'SETTINGS.LOOP_MODE_DISABLED';
+    });
     readonly speedPresets = SPEED_PRESETS;
     readonly aspectPresets = ASPECT_PRESETS;
 
@@ -161,6 +177,7 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
             this.support()?.capabilities ?? {
                 subtitles: false,
                 playbackSpeed: false,
+                loop: false,
                 aspectOverride: false,
                 screenshot: false,
                 recording: false,
@@ -546,6 +563,23 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
         });
 
         effect(() => {
+            const id = this.controller.sessionId();
+            const loop = this.loopMode() === 'program';
+            if (id) {
+                untracked(() => {
+                    void this.controller
+                        .setLoop(loop)
+                        .catch((error) =>
+                            console.warn(
+                                'Could not set embedded MPV loop mode.',
+                                error
+                            )
+                        );
+                });
+            }
+        });
+
+        effect(() => {
             this.overlayVisibility.overlayActive();
             this.controller.triggerBoundsSync();
         });
@@ -771,6 +805,21 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
         this.legacyInteractions.scheduleControlsHide();
     }
 
+    cycleLoopMode(): void {
+        const current = this.loopMode();
+        const next =
+            current === 'disabled'
+                ? this.capabilities().loop
+                    ? 'program'
+                    : 'channel'
+                : current === 'program'
+                  ? 'channel'
+                  : 'disabled';
+        void this.settingsStore
+            .updateSettings({ loopMode: next })
+            .catch((error) => console.warn('Could not save loop mode.', error));
+    }
+
     async selectSpeed(speed: number): Promise<void> {
         this.legacyInteractions.revealControls(false);
         await this.controller.setSpeed(speed);
@@ -860,6 +909,7 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
     }
 
     retry(): void {
+        this.retryRequested.emit();
         this.controller.retry();
     }
 
