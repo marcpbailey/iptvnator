@@ -599,9 +599,14 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
             ) {
                 this.subtitlePreferenceRevision = this.subtitlePreference.revision;
                 this.subtitlePreferenceApplied = true;
+                return;
             }
+            const offNeedsReapply =
+                this.subtitlePreference.current === null &&
+                session.selectedSubtitleTrackId !== null &&
+                session.selectedSubtitleTrackId !== -1;
             if (
-                this.subtitlePreferenceApplied ||
+                (this.subtitlePreferenceApplied && !offNeedsReapply) ||
                 session.subtitleTracks.length === 0
             ) {
                 return;
@@ -619,12 +624,7 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
                 return;
             }
             if (preference === null) {
-                if (
-                    session.selectedSubtitleTrackId !== null &&
-                    session.selectedSubtitleTrackId !== -1
-                ) {
-                    untracked(() => void this.controller.setSubtitleTrack(-1));
-                }
+                untracked(() => void this.controller.setSubtitleTrack(-1));
                 this.subtitlePreferenceApplied = true;
                 return;
             }

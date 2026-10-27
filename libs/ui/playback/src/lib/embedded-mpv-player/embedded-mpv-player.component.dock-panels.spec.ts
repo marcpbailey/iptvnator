@@ -19,7 +19,7 @@ import {
     imports: [EmbeddedMpvPlayerComponent],
     template: `<app-embedded-mpv-player
         [playback]="playback"
-        [showCaptions]="showCaptions"
+        [showCaptions]="showCaptions()"
     />`,
 })
 class DockPanelsHostComponent {
@@ -804,6 +804,62 @@ describe('EmbeddedMpvPlayerComponent dock panels', () => {
         fixture.detectChanges();
         await fixture.whenStable();
 
+        expect(setSubtitleTrack).not.toHaveBeenCalled();
+    });
+
+    it('keeps subtitles off when a track is automatically selected after loading', async () => {
+        const setSubtitleTrack = jest
+            .spyOn(controller, 'setSubtitleTrack')
+            .mockResolvedValue(undefined);
+        await player.selectSubtitleTrack(-1);
+        setSubtitleTrack.mockClear();
+        const currentSession = controller.session();
+        if (!currentSession) {
+            throw new Error('Expected a ready embedded MPV session');
+        }
+        controller.session.set({
+            ...currentSession,
+            loadRevision: 2,
+            subtitleTracks: [{ id: 31, language: 'eng', selected: false }],
+            selectedSubtitleTrackId: null,
+        });
+        fixture.detectChanges();
+        await fixture.whenStable();
+        expect(setSubtitleTrack).toHaveBeenCalledWith(-1);
+
+        setSubtitleTrack.mockClear();
+        controller.session.update((session) =>
+            session
+                ? {
+                      ...session,
+                      subtitleTracks: [
+                          { id: 31, language: 'eng', selected: true },
+                      ],
+                      selectedSubtitleTrackId: 31,
+                  }
+                : session
+        );
+        fixture.detectChanges();
+        await fixture.whenStable();
+        expect(setSubtitleTrack).toHaveBeenCalledWith(-1);
+    });
+
+    it('does not select a subtitle when Show subtitles is disabled', async () => {
+        const setSubtitleTrack = jest
+            .spyOn(controller, 'setSubtitleTrack')
+            .mockResolvedValue(undefined);
+        const currentSession = controller.session();
+        if (!currentSession) {
+            throw new Error('Expected a ready embedded MPV session');
+        }
+        controller.session.set({
+            ...currentSession,
+            subtitleTracks: [{ id: 31, language: 'eng', selected: false }],
+            selectedSubtitleTrackId: null,
+        });
+        controller.sessionId.set('session-1');
+        fixture.detectChanges();
+        await fixture.whenStable();
         expect(setSubtitleTrack).not.toHaveBeenCalled();
     });
 
