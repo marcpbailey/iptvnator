@@ -160,10 +160,13 @@
 
             <div
                 class="setting-item"
+                data-setting-id="remember-last-channel"
                 data-test-id="remember-last-channel-setting"
             >
                 <div class="setting-item__meta">
-                    <h4>{{ 'SETTINGS.REMEMBER_LAST_CHANNEL' | translate }}</h4>
+                    <h4 id="remember-last-channel-label">
+                        {{ 'SETTINGS.REMEMBER_LAST_CHANNEL' | translate }}
+                    </h4>
                     <p>
                         {{
                             'SETTINGS.REMEMBER_LAST_CHANNEL_DESCRIPTION'
@@ -174,16 +177,18 @@
                 <div class="setting-item__control setting-item__toggle">
                     <mat-slide-toggle
                         formControlName="rememberLastChannel"
+                        aria-labelledby="remember-last-channel-label"
                     ></mat-slide-toggle>
                 </div>
             </div>
             @if (form().value.rememberLastChannel) {
                 <div
                     class="setting-item"
+                    data-setting-id="autoplay-on-relaunch"
                     data-test-id="autoplay-on-relaunch-setting"
                 >
                     <div class="setting-item__meta">
-                        <h4>
+                        <h4 id="autoplay-on-relaunch-label">
                             {{ 'SETTINGS.AUTOPLAY_ON_RELAUNCH' | translate }}
                         </h4>
                         <p>
@@ -196,6 +201,7 @@
                     <div class="setting-item__control setting-item__toggle">
                         <mat-slide-toggle
                             formControlName="autoplayOnRelaunch"
+                            aria-labelledby="autoplay-on-relaunch-label"
                         ></mat-slide-toggle>
                     </div>
                 </div>

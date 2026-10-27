@@ -493,7 +493,8 @@ export class LiveStreamLayoutComponent
             );
             if (url === null) return;
             const channels = this.getAllLiveStreams();
-            if (!channels.length) return;
+            if (!channels.length && !this.xtreamStore.isContentInitialized())
+                return;
             const credentials = {
                 serverUrl: playlist.serverUrl,
                 username: playlist.username,
@@ -772,6 +773,8 @@ export class LiveStreamLayoutComponent
             this.resolveLiveProviderCategoryId(item);
         const playlist = this.xtreamStore.currentPlaylist();
         this.activePlaylistId = playlist?.id ?? null;
+        if (!this.usesEmbeddedPlayer())
+            this.isActivelyPlaying.set(startPlayback);
         this.activePlayback.set({
             streamUrl,
             liveAutoTsUrl: playlist

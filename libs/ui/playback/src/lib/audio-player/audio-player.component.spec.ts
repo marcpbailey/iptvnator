@@ -75,6 +75,17 @@ describe('AudioPlayerComponent', () => {
         expect(component.playState()).toBe('paused');
     });
 
+    it('reports when radio playback stops', () => {
+        createComponent();
+        const playing: boolean[] = [];
+        component.playingChange.subscribe((value) => playing.push(value));
+
+        component.stop();
+
+        expect(playing).toEqual([false]);
+        expect(pauseSpy).toHaveBeenCalled();
+    });
+
     it('clamps volume updates and persists them to localStorage', () => {
         const audio = createComponent();
 

@@ -2,6 +2,7 @@
 import { EventEmitter, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { PortalEmptyStateComponent } from '@iptvnator/portal/shared/ui';
@@ -197,6 +198,7 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         resolvedEpgOffsetMinutes: signal(0),
     };
     const originalElectron = window.electron;
+    const router = { navigateByUrl: jest.fn() };
 
     beforeEach(async () => {
         // The store mock is module-scoped: reset so a failed test can't leak
@@ -239,6 +241,7 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         stalkerStore.preloadItvChannels.mockClear();
         localStorage.removeItem(LIVE_EPG_PANEL_STATE_STORAGE_KEY);
         settingsStore.openStreamOnDoubleClick.set(false);
+        router.navigateByUrl.mockClear();
 
         resolveItvPlayback.mockReset();
         resolveItvPlayback.mockResolvedValue({
@@ -279,6 +282,7 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         await TestBed.configureTestingModule({
             imports: [StalkerLiveStreamLayoutComponent, NoopAnimationsModule],
             providers: [
+                { provide: Router, useValue: router },
                 { provide: StalkerStore, useValue: stalkerStore },
                 {
                     provide: RuntimeCapabilitiesService,
@@ -412,6 +416,26 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         await fixture.whenStable();
 
         expect(portalPlayer.openResolvedPlayback).not.toHaveBeenCalled();
+    });
+
+    it('uses normal startup navigation when the loaded ITV catalog is empty', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            'https://example.com/old-url',
+            true,
+            '10002',
+            '/workspace/dashboard'
+        );
+        itvFullChannelList.set([]);
+        itvFullListActive.set(true);
+
+        fixture.detectChanges();
+
+        expect(router.navigateByUrl).toHaveBeenCalledWith(
+            '/workspace/dashboard'
+        );
+        expect(resume.peekPendingResumeStreamUrl('playlist-1')).toBeNull();
     });
 
     it('clears the startup pause when another channel is selected', async () => {

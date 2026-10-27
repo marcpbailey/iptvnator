@@ -162,6 +162,7 @@ export class ArtPlayerComponent implements OnInit, OnDestroy, OnChanges {
             controlsAdapter: this.controlsAdapter,
             isLive: () => this.isLive(),
             showCaptions: () => this.showCaptions(),
+            startPaused: () => this.startPaused(),
             emitPlaybackIssue: (issue) => this.playbackIssue.emit(issue),
             getDrm: () => this.channel().drm,
         });

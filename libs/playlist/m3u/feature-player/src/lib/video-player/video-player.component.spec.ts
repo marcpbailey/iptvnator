@@ -42,6 +42,7 @@ import {
     buildAiringProgram,
     activePlaybackUrl,
     channels,
+    channelsLoaded,
     channels$,
     activeChannel$,
     channelsLoading,
@@ -115,6 +116,7 @@ describe('VideoPlayerComponent', () => {
         stripCountryPrefix.set(false);
         activePlaybackUrl.set(null);
         channelsLoading.set(false);
+        channelsLoaded.set(false);
         currentEpgProgram.set(null);
         activeEpgProgram.set(null);
         externalSession.set(null);
@@ -263,6 +265,7 @@ describe('VideoPlayerComponent', () => {
         const resume = TestBed.inject(PlaybackResumeService);
         resume.setPendingResume('playlist-1', sampleChannel.url, true);
         channels.set([sampleChannel]);
+        channelsLoaded.set(true);
 
         fixture.detectChanges();
 
@@ -282,6 +285,7 @@ describe('VideoPlayerComponent', () => {
             .mockResolvedValue(undefined);
         resume.setPendingResume('playlist-1', sampleChannel.url, false);
         channels.set([sampleChannel]);
+        channelsLoaded.set(true);
 
         fixture.detectChanges();
         syncStoreState(sampleChannel);
@@ -305,8 +309,22 @@ describe('VideoPlayerComponent', () => {
             .mockResolvedValue(undefined);
         resume.setPendingResume('playlist-1', sampleChannel.url, false);
         channels.set([sampleChannel]);
+        channelsLoaded.set(true);
 
         fixture.detectChanges();
+        syncStoreState(sampleChannel);
+        fixture.detectChanges();
+
+        expect(recordStarted).not.toHaveBeenCalled();
+    });
+
+    it('does not remember an external channel selected without a launch', () => {
+        player.set(VideoPlayer.MPV);
+        const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
+
         syncStoreState(sampleChannel);
         fixture.detectChanges();
 
@@ -321,6 +339,7 @@ describe('VideoPlayerComponent', () => {
         ).mockReturnValue(true);
         resume.setPendingResume('playlist-1', sampleChannel.url, true);
         channels.set([sampleChannel]);
+        channelsLoaded.set(true);
 
         fixture.detectChanges();
 
@@ -341,12 +360,33 @@ describe('VideoPlayerComponent', () => {
             '/workspace/dashboard'
         );
         channels.set([sampleChannel]);
+        channelsLoaded.set(true);
 
         fixture.detectChanges();
 
         expect(routerMock.navigateByUrl).toHaveBeenCalledWith(
             '/workspace/dashboard'
         );
+    });
+
+    it('returns to normal startup navigation when the loaded playlist is empty', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            sampleChannel.url,
+            true,
+            undefined,
+            '/workspace/dashboard'
+        );
+        channels.set([]);
+        channelsLoaded.set(true);
+
+        fixture.detectChanges();
+
+        expect(routerMock.navigateByUrl).toHaveBeenCalledWith(
+            '/workspace/dashboard'
+        );
+        expect(resume.peekPendingResumeStreamUrl('playlist-1')).toBeNull();
     });
 
     it('registers and clears the workspace guide header shortcut', () => {

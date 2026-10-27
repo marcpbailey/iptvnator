@@ -189,6 +189,7 @@ export class AudioPlayerComponent {
     readonly startPaused = input(false);
     readonly channelSwitchRequested = output<'next' | 'previous'>();
     readonly volumeChange = output<number>();
+    readonly playingChange = output<boolean>();
 
     readonly playState = signal<'play' | 'paused'>('paused');
     readonly volume = signal(1);
@@ -302,13 +303,17 @@ export class AudioPlayerComponent {
         if (!audio) return;
         audio.play().catch((err) => {
             console.warn('[AudioPlayer] Audio playback failed:', err);
+            this.playState.set('paused');
+            this.playingChange.emit(false);
         });
         this.playState.set('play');
+        this.playingChange.emit(true);
     }
 
     stop() {
         this.audioRef()?.nativeElement?.pause();
         this.playState.set('paused');
+        this.playingChange.emit(false);
     }
 
     setVolume(value: number, options: { emitChange?: boolean } = {}) {

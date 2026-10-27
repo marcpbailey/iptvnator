@@ -110,7 +110,11 @@ describe('LiveStreamLayoutComponent', () => {
     };
 
     let routerEvents: Subject<unknown>;
-    let router: { events: Subject<unknown>; navigate: jest.Mock };
+    let router: {
+        events: Subject<unknown>;
+        navigate: jest.Mock;
+        navigateByUrl: jest.Mock;
+    };
     const favoritesService = {
         getFavorites: jest.fn().mockReturnValue(of([])),
     };
@@ -152,7 +156,11 @@ describe('LiveStreamLayoutComponent', () => {
         } as unknown as typeof window.electron;
 
         routerEvents = new Subject();
-        router = { events: routerEvents, navigate: jest.fn() };
+        router = {
+            events: routerEvents,
+            navigate: jest.fn(),
+            navigateByUrl: jest.fn(),
+        };
         xtreamStore.constructStreamUrl.mockClear();
         xtreamStore.openPlayer.mockClear();
         xtreamStore.addRecentItem.mockClear();
@@ -219,6 +227,7 @@ describe('LiveStreamLayoutComponent', () => {
                     useValue: {
                         events: router.events.asObservable(),
                         navigate: router.navigate,
+                        navigateByUrl: router.navigateByUrl,
                     },
                 },
                 { provide: XtreamStore, useValue: xtreamStore },
@@ -362,6 +371,41 @@ describe('LiveStreamLayoutComponent', () => {
         fixture.detectChanges();
 
         expect(xtreamStore.openPlayer).not.toHaveBeenCalled();
+    });
+
+    it('does not remember an external channel selected without a launch', () => {
+        portalPlayer.isEmbeddedPlayer.mockReturnValue(false);
+        const recordStarted = jest
+            .spyOn(
+                TestBed.inject(PlaybackResumeService),
+                'recordPlaybackStarted'
+            )
+            .mockResolvedValue(undefined);
+
+        component.playLive(sampleChannel, false);
+        fixture.detectChanges();
+
+        expect(recordStarted).not.toHaveBeenCalled();
+        expect(xtreamStore.openPlayer).not.toHaveBeenCalled();
+    });
+
+    it('uses normal startup navigation when the loaded live catalog is empty', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            playlist.id,
+            'https://example.com/old-url',
+            true,
+            String(sampleChannel.xtream_id),
+            '/workspace/dashboard'
+        );
+        liveStreams.set([]);
+        isContentInitialized.set(true);
+        fixture.detectChanges();
+
+        expect(router.navigateByUrl).toHaveBeenCalledWith(
+            '/workspace/dashboard'
+        );
+        expect(resume.peekPendingResumeStreamUrl(playlist.id)).toBeNull();
     });
 
     it('renders the controlled epg list for electron playback', () => {

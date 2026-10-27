@@ -66,6 +66,7 @@ import {
     selectActivePlaybackUrl,
     selectActivePlaylist,
     selectChannels,
+    selectChannelsLoaded,
     selectChannelsLoading,
     selectCurrentEpgProgram,
     selectFavorites,
@@ -279,6 +280,7 @@ export class VideoPlayerComponent
             : '';
     });
     readonly channels = this.store.selectSignal(selectChannels);
+    readonly channelsLoaded = this.store.selectSignal(selectChannelsLoaded);
     readonly channelsLoading = this.store.selectSignal(selectChannelsLoading);
     readonly activePlaylistRecentItems = computed(
         () => this.playlistContext.activePlaylist()?.recentlyViewed ?? []
@@ -811,7 +813,15 @@ export class VideoPlayerComponent
         effect(() => {
             const playlistId = this.activePlaylistId();
             const channel = this.activeChannel();
-            const playing = this.isActivelyPlaying();
+            const externalSession = this.externalPlayback.activeSession();
+            const usesExternalPlayer =
+                channel?.radio !== 'true' &&
+                !this.activeChannelIsDash() &&
+                this.isExternalPlayer(this.settingsStore.player());
+            const playing = usesExternalPlayer
+                ? isLiveExternalPlayerSession(externalSession) &&
+                  externalSession.streamUrl === channel?.url
+                : this.isActivelyPlaying();
             if (playlistId && channel?.url && playing && !this.startPaused()) {
                 void this.playbackResumeService.recordPlaybackStarted(
                     'm3u',
@@ -826,7 +836,13 @@ export class VideoPlayerComponent
         effect(() => {
             const playlistId = this.activePlaylistId();
             const channels = this.channels();
-            if (!playlistId || !channels.length || this.resumeConsumed) return;
+            if (
+                !playlistId ||
+                !this.channelsLoaded() ||
+                this.channelsLoading() ||
+                this.resumeConsumed
+            )
+                return;
             const url =
                 this.playbackResumeService.peekPendingResumeStreamUrl(
                     playlistId

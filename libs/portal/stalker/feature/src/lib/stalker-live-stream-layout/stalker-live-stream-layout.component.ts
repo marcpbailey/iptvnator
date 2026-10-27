@@ -688,7 +688,12 @@ export class StalkerLiveStreamLayoutComponent
                     playlistId
                 );
             const channels = this.itvFullChannelList();
-            if (!channels.length) return;
+            if (
+                !channels.length &&
+                (!this.stalkerStore.itvFullListActive() ||
+                    this.stalkerStore.itvFullListLoading())
+            )
+                return;
             const target = channelId
                 ? channels.find(
                       (item) => normalizeStalkerEntityId(item.id) === channelId
