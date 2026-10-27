@@ -267,7 +267,6 @@ export class EmbeddedMpvSessionController {
             activeSessionId = created.id;
             this.sessionId.set(created.id);
             this.session.set(created);
-            await electron.loadEmbeddedMpvPlayback(created.id, playback);
             if (initialPaused && !disposed) {
                 const updated = await electron.setEmbeddedMpvPaused(
                     created.id,
@@ -275,6 +274,8 @@ export class EmbeddedMpvSessionController {
                 );
                 if (updated && !disposed) this.session.set(updated);
             }
+            if (disposed) return;
+            await electron.loadEmbeddedMpvPlayback(created.id, playback);
             if (disposed) {
                 return;
             }

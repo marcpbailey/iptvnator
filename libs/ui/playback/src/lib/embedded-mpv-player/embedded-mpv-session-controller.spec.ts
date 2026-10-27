@@ -325,6 +325,26 @@ describe('EmbeddedMpvSessionController', () => {
         expect(controller.session()?.volume).toBe(0.25);
     });
 
+    it('pauses a restored session before loading its stream', async () => {
+        const controller = TestBed.inject(EmbeddedMpvSessionController);
+        controller.startSession(createHost(), createPlayback(), 0.5, true);
+
+        await waitFor(
+            () => electron.loadEmbeddedMpvPlayback.mock.calls.length > 0,
+            'paused playback to load'
+        );
+
+        expect(electron.setEmbeddedMpvPaused).toHaveBeenCalledWith(
+            'mpv-1',
+            true
+        );
+        expect(
+            electron.setEmbeddedMpvPaused.mock.invocationCallOrder[0]
+        ).toBeLessThan(
+            electron.loadEmbeddedMpvPlayback.mock.invocationCallOrder[0]
+        );
+    });
+
     it('swallows command errors so stale IPC races do not clear current state', async () => {
         const controller = TestBed.inject(EmbeddedMpvSessionController);
         const current = createSession({ id: 'mpv-1', volume: 0.8 });

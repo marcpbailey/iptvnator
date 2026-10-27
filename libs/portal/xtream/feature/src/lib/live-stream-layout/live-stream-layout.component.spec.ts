@@ -16,6 +16,7 @@ import {
     LIVE_EPG_PANEL_STATE_STORAGE_KEY,
     liveSidebarStateStorageKey,
     LiveLayoutSidebarStateService,
+    PORTAL_EXTERNAL_PLAYBACK,
     PORTAL_PLAYER,
 } from '@iptvnator/portal/shared/util';
 import {
@@ -36,6 +37,7 @@ import {
 import {
     EpgItem,
     EpgProgram,
+    ExternalPlayerSession,
     ResolvedPortalPlayback,
 } from '@iptvnator/shared/interfaces';
 import { GridListComponent } from '@iptvnator/portal/shared/ui';
@@ -80,6 +82,7 @@ describe('LiveStreamLayoutComponent', () => {
     const currentPlaylist = signal(playlist);
     const liveStreams = signal<unknown[]>([]);
     const isContentInitialized = signal(true);
+    const externalSession = signal<ExternalPlayerSession | null>(null);
     const paginatedContent = signal<unknown[]>([]);
     const hasMoreContent = signal(false);
 
@@ -177,6 +180,7 @@ describe('LiveStreamLayoutComponent', () => {
         xtreamUrlService.resolveCatchupUrl.mockClear();
         portalPlayer.isEmbeddedPlayer.mockReset();
         portalPlayer.isEmbeddedPlayer.mockReturnValue(true);
+        externalSession.set(null);
         portalPlayer.openExternalPlayback.mockClear();
 
         epgItems.set([]);
@@ -231,6 +235,10 @@ describe('LiveStreamLayoutComponent', () => {
                     },
                 },
                 { provide: XtreamStore, useValue: xtreamStore },
+                {
+                    provide: PORTAL_EXTERNAL_PLAYBACK,
+                    useValue: { activeSession: externalSession },
+                },
                 { provide: FavoritesService, useValue: favoritesService },
                 { provide: XtreamUrlService, useValue: xtreamUrlService },
                 {
@@ -387,6 +395,65 @@ describe('LiveStreamLayoutComponent', () => {
 
         expect(recordStarted).not.toHaveBeenCalled();
         expect(xtreamStore.openPlayer).not.toHaveBeenCalled();
+    });
+
+    it('tracks the external player session and stops when it closes', () => {
+        portalPlayer.isEmbeddedPlayer.mockReturnValue(false);
+        const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
+        const recordStopped = jest
+            .spyOn(resume, 'recordPlaybackStopped')
+            .mockResolvedValue(undefined);
+
+        component.playLive(sampleChannel, true);
+        fixture.detectChanges();
+        expect(recordStarted).not.toHaveBeenCalled();
+
+        externalSession.set({
+            id: 'session-1',
+            player: 'mpv',
+            status: 'playing',
+            title: 'Sample Channel',
+            streamUrl: 'https://example.com/live.ts',
+            startedAt: '2026-10-27T00:00:00Z',
+            updatedAt: '2026-10-27T00:00:00Z',
+            canClose: true,
+        });
+        fixture.detectChanges();
+        expect(recordStarted).toHaveBeenCalledWith(
+            'xtream',
+            playlist.id,
+            'https://example.com/live.ts',
+            String(sampleChannel.xtream_id)
+        );
+
+        recordStopped.mockClear();
+        externalSession.set({ ...externalSession()!, status: 'closed' });
+        fixture.detectChanges();
+        expect(recordStopped).toHaveBeenCalled();
+    });
+
+    it('keeps the playing Xtream ID when browsing clears the selection', () => {
+        const recordStarted = jest
+            .spyOn(
+                TestBed.inject(PlaybackResumeService),
+                'recordPlaybackStarted'
+            )
+            .mockResolvedValue(undefined);
+
+        component.playLive(sampleChannel, true);
+        fixture.detectChanges();
+        selectedItem.set(null);
+        fixture.detectChanges();
+
+        expect(recordStarted).toHaveBeenLastCalledWith(
+            'xtream',
+            playlist.id,
+            'https://example.com/live.ts',
+            String(sampleChannel.xtream_id)
+        );
     });
 
     it('uses normal startup navigation when the loaded live catalog is empty', () => {

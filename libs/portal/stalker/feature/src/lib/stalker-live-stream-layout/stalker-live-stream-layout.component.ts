@@ -84,7 +84,9 @@ import { LiveEpgPanelSummary } from '@iptvnator/ui/shared-portals';
 import { EpgRuntimeBridgeService } from '@iptvnator/epg/data-access';
 import {
     createLivePanelsController,
+    isLiveExternalPlayerSession,
     LiveLayoutSidebarStateService,
+    PORTAL_EXTERNAL_PLAYBACK,
     PORTAL_PLAYER,
     createLogger,
     isTypingInInput,
@@ -198,6 +200,9 @@ export class StalkerLiveStreamLayoutComponent
     private readonly runtime = inject(RuntimeCapabilitiesService);
     private readonly settingsStore = inject(SettingsStore);
     private readonly portalPlayer = inject(PORTAL_PLAYER);
+    private readonly externalPlayback = inject(PORTAL_EXTERNAL_PLAYBACK, {
+        optional: true,
+    });
     private readonly playbackResumeService = inject(PlaybackResumeService);
     private readonly streamHeaders = inject(ElectronStreamHeadersService);
     private readonly snackBar = inject(MatSnackBar);
@@ -659,6 +664,13 @@ export class StalkerLiveStreamLayoutComponent
     } | null = null;
     private lastPlaylistId: string | null | undefined = undefined;
     private pendingResumeConsumed = false;
+    private resumePreloadStarted = false;
+    private readonly resumePreloadSettled = signal(false);
+    private readonly externalResumeTarget = signal<{
+        sourceId: string;
+        channelId: string;
+        streamUrl: string;
+    } | null>(null);
     private readonly isActivelyPlaying = signal(true);
     private readonly resumeTargetChannelId = signal<string | null>(null);
     private readonly router = inject(Router, { optional: true });
@@ -688,12 +700,23 @@ export class StalkerLiveStreamLayoutComponent
                     playlistId
                 );
             const channels = this.itvFullChannelList();
-            if (
-                !channels.length &&
-                (!this.stalkerStore.itvFullListActive() ||
-                    this.stalkerStore.itvFullListLoading())
-            )
-                return;
+            if (!channels.length && !this.stalkerStore.itvFullListActive()) {
+                if (!this.resumePreloadStarted) {
+                    this.resumePreloadStarted = true;
+                    void Promise.resolve()
+                        .then(() => this.stalkerStore.preloadItvChannels())
+                        .then(
+                            () => this.resumePreloadSettled.set(true),
+                            () => this.resumePreloadSettled.set(true)
+                        );
+                }
+                if (
+                    this.stalkerStore.itvFullListLoading() ||
+                    (!this.stalkerStore.itvFullListUnsupported() &&
+                        !this.resumePreloadSettled())
+                )
+                    return;
+            }
             const target = channelId
                 ? channels.find(
                       (item) => normalizeStalkerEntityId(item.id) === channelId
@@ -721,6 +744,10 @@ export class StalkerLiveStreamLayoutComponent
         });
 
         effect(() => {
+            if (this.isRadioMode()) {
+                void this.playbackResumeService.recordPlaybackStopped();
+                return;
+            }
             if (!this.usesEmbeddedPlayer()) return;
             const playback = this.activePlayback();
             const playlistId = this.stalkerStore.currentPlaylist()?._id;
@@ -735,6 +762,28 @@ export class StalkerLiveStreamLayoutComponent
                 );
             } else {
                 void this.playbackResumeService.recordPlaybackStopped();
+            }
+        });
+
+        effect(() => {
+            const target = this.externalResumeTarget();
+            if (!target || this.isRadioMode() || this.usesEmbeddedPlayer())
+                return;
+            const session = this.externalPlayback?.activeSession();
+            if (
+                isLiveExternalPlayerSession(session) &&
+                session.streamUrl === target.streamUrl
+            ) {
+                void this.playbackResumeService.recordPlaybackStarted(
+                    'stalker',
+                    target.sourceId,
+                    target.streamUrl,
+                    target.channelId
+                );
+            } else {
+                void this.playbackResumeService.recordPlaybackStopped();
+                if (session && !isLiveExternalPlayerSession(session))
+                    this.externalResumeTarget.set(null);
             }
         });
 
@@ -1112,15 +1161,14 @@ export class StalkerLiveStreamLayoutComponent
                     contentId: channelId,
                 });
             } else if (startPlayback) {
-                void this.portalPlayer.openResolvedPlayback(playback, true);
                 if (sourceId && channelId) {
-                    void this.playbackResumeService.recordPlaybackStarted(
-                        'stalker',
+                    this.externalResumeTarget.set({
                         sourceId,
-                        playback.streamUrl,
-                        channelId
-                    );
+                        channelId,
+                        streamUrl: playback.streamUrl,
+                    });
                 }
+                void this.portalPlayer.openResolvedPlayback(playback, true);
             }
         } catch (error) {
             if (

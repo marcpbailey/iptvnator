@@ -9,6 +9,7 @@ import { PortalEmptyStateComponent } from '@iptvnator/portal/shared/ui';
 import type { PlaybackFallbackRequest } from '@iptvnator/playback/util';
 import {
     LIVE_EPG_PANEL_STATE_STORAGE_KEY,
+    PORTAL_EXTERNAL_PLAYBACK,
     PORTAL_PLAYER,
 } from '@iptvnator/portal/shared/util';
 import {
@@ -35,6 +36,7 @@ import {
     ElectronBridgeApi,
     EpgItem,
     EpgProgram,
+    ExternalPlayerSession,
     ResolvedPortalPlayback,
 } from '@iptvnator/shared/interfaces';
 import { MatDialog } from '@angular/material/dialog';
@@ -120,6 +122,8 @@ describe('StalkerLiveStreamLayoutComponent', () => {
     const page = signal(0);
     const itvFullListActive = signal(false);
     const itvFullListLoading = signal(false);
+    const itvFullListUnsupported = signal(false);
+    const externalSession = signal<ExternalPlayerSession | null>(null);
     const itvFullListProgress = signal<{
         loaded: number;
         total: number;
@@ -138,6 +142,7 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         hasMoreChannels,
         itvFullListActive,
         itvFullListLoading,
+        itvFullListUnsupported,
         itvFullListProgress,
         itvFullChannelList,
         itvSelectedCategoryFromCache,
@@ -234,11 +239,14 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         page.set(0);
         itvFullListActive.set(false);
         itvFullListLoading.set(false);
+        itvFullListUnsupported.set(false);
+        externalSession.set(null);
         itvFullListProgress.set(null);
         itvFullChannelList.set([]);
         itvSelectedCategoryFromCache.set(false);
         isPaginatedContentLoading.set(false);
-        stalkerStore.preloadItvChannels.mockClear();
+        stalkerStore.preloadItvChannels.mockReset();
+        stalkerStore.preloadItvChannels.mockResolvedValue(undefined);
         localStorage.removeItem(LIVE_EPG_PANEL_STATE_STORAGE_KEY);
         settingsStore.openStreamOnDoubleClick.set(false);
         router.navigateByUrl.mockClear();
@@ -305,6 +313,10 @@ describe('StalkerLiveStreamLayoutComponent', () => {
                     useValue: { version: signal(0), active: signal(false) },
                 },
                 { provide: PORTAL_PLAYER, useValue: portalPlayer },
+                {
+                    provide: PORTAL_EXTERNAL_PLAYBACK,
+                    useValue: { activeSession: externalSession },
+                },
                 {
                     provide: TranslateService,
                     useValue: {
@@ -418,6 +430,45 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         expect(portalPlayer.openResolvedPlayback).not.toHaveBeenCalled();
     });
 
+    it('tracks an external Stalker session until it closes', async () => {
+        portalPlayer.isEmbeddedPlayer.mockReturnValue(false);
+        const channels = defaultItvChannels();
+        const resume = TestBed.inject(PlaybackResumeService);
+        const recordStarted = jest
+            .spyOn(resume, 'recordPlaybackStarted')
+            .mockResolvedValue(undefined);
+        const recordStopped = jest
+            .spyOn(resume, 'recordPlaybackStopped')
+            .mockResolvedValue(undefined);
+
+        await component.playChannel(channels[0], true);
+        fixture.detectChanges();
+        expect(recordStarted).not.toHaveBeenCalled();
+
+        externalSession.set({
+            id: 'session-1',
+            player: 'mpv',
+            status: 'playing',
+            title: 'Channel',
+            streamUrl: 'https://example.com/alpha.m3u8',
+            startedAt: '2026-10-27T00:00:00Z',
+            updatedAt: '2026-10-27T00:00:00Z',
+            canClose: true,
+        });
+        fixture.detectChanges();
+        expect(recordStarted).toHaveBeenCalledWith(
+            'stalker',
+            'playlist-1',
+            'https://example.com/alpha.m3u8',
+            String(channels[0].id)
+        );
+
+        recordStopped.mockClear();
+        externalSession.set({ ...externalSession()!, status: 'closed' });
+        fixture.detectChanges();
+        expect(recordStopped).toHaveBeenCalled();
+    });
+
     it('uses normal startup navigation when the loaded ITV catalog is empty', () => {
         const resume = TestBed.inject(PlaybackResumeService);
         resume.setPendingResume(
@@ -431,6 +482,53 @@ describe('StalkerLiveStreamLayoutComponent', () => {
         itvFullListActive.set(true);
 
         fixture.detectChanges();
+
+        expect(router.navigateByUrl).toHaveBeenCalledWith(
+            '/workspace/dashboard'
+        );
+        expect(resume.peekPendingResumeStreamUrl('playlist-1')).toBeNull();
+    });
+
+    it('uses normal startup navigation when full-list loading is unsupported', () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            'https://example.com/old-url',
+            true,
+            '10002',
+            '/workspace/dashboard'
+        );
+        itvFullChannelList.set([]);
+        itvFullListUnsupported.set(true);
+
+        fixture.detectChanges();
+
+        expect(router.navigateByUrl).toHaveBeenCalledWith(
+            '/workspace/dashboard'
+        );
+        expect(resume.peekPendingResumeStreamUrl('playlist-1')).toBeNull();
+    });
+
+    it('uses normal startup navigation when full-list loading fails', async () => {
+        const resume = TestBed.inject(PlaybackResumeService);
+        resume.setPendingResume(
+            'playlist-1',
+            'https://example.com/old-url',
+            true,
+            '10002',
+            '/workspace/dashboard'
+        );
+        itvFullChannelList.set([]);
+        stalkerStore.preloadItvChannels.mockResolvedValue(undefined);
+
+        fixture.detectChanges();
+        await fixture.whenStable();
+        await Promise.resolve();
+        await Promise.resolve();
+        TestBed.tick();
+        fixture.detectChanges();
+
+        expect(stalkerStore.preloadItvChannels).toHaveBeenCalled();
 
         expect(router.navigateByUrl).toHaveBeenCalledWith(
             '/workspace/dashboard'

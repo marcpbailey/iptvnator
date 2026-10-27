@@ -41,6 +41,8 @@ import {
 } from '@iptvnator/portal/shared/ui';
 import {
     createLivePanelsController,
+    isLiveExternalPlayerSession,
+    PORTAL_EXTERNAL_PLAYBACK,
     PORTAL_PLAYER,
     PortalChannelSortMode,
     getPortalChannelSortModeLabelKey,
@@ -179,6 +181,9 @@ export class LiveStreamLayoutComponent
     private readonly runtime = inject(RuntimeCapabilitiesService);
     private readonly settingsStore = inject(SettingsStore);
     private readonly portalPlayer = inject(PORTAL_PLAYER);
+    private readonly externalPlayback = inject(PORTAL_EXTERNAL_PLAYBACK, {
+        optional: true,
+    });
     private readonly parentalLock = inject(ParentalLockService);
     private readonly databaseService = inject(DatabaseService);
     private readonly liveAutoOpenState = inject(LiveStreamAutoOpenStateService);
@@ -468,14 +473,19 @@ export class LiveStreamLayoutComponent
             const playback = this.activePlayback();
             const playlist = this.xtreamStore.currentPlaylist();
             if (!playback?.isLive || !playlist) return;
-            if (!this.isActivelyPlaying() || this.startPaused()) {
+            const externalSession = this.externalPlayback?.activeSession();
+            const playing = this.usesEmbeddedPlayer()
+                ? this.isActivelyPlaying() && !this.startPaused()
+                : isLiveExternalPlayerSession(externalSession) &&
+                  externalSession.streamUrl === playback.streamUrl;
+            if (!playing) {
                 void this.playbackResumeService.recordPlaybackStopped();
             } else {
                 void this.playbackResumeService.recordPlaybackStarted(
                     'xtream',
                     playlist.id,
                     playback.streamUrl,
-                    String(this.selectedLiveItem()?.xtream_id ?? '')
+                    String(this.activeLiveItemId() ?? '')
                 );
             }
         });
@@ -773,8 +783,6 @@ export class LiveStreamLayoutComponent
             this.resolveLiveProviderCategoryId(item);
         const playlist = this.xtreamStore.currentPlaylist();
         this.activePlaylistId = playlist?.id ?? null;
-        if (!this.usesEmbeddedPlayer())
-            this.isActivelyPlaying.set(startPlayback);
         this.activePlayback.set({
             streamUrl,
             liveAutoTsUrl: playlist

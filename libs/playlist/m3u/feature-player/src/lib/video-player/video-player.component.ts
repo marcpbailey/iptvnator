@@ -822,7 +822,13 @@ export class VideoPlayerComponent
                 ? isLiveExternalPlayerSession(externalSession) &&
                   externalSession.streamUrl === channel?.url
                 : this.isActivelyPlaying();
-            if (playlistId && channel?.url && playing && !this.startPaused()) {
+            if (
+                playlistId &&
+                channel?.url &&
+                !isLikelyM3uVod(channel) &&
+                playing &&
+                !this.startPaused()
+            ) {
                 void this.playbackResumeService.recordPlaybackStarted(
                     'm3u',
                     playlistId,
@@ -861,6 +867,7 @@ export class VideoPlayerComponent
             this.playbackResumeService.clearPendingResume();
             if (
                 !channel ||
+                isLikelyM3uVod(channel) ||
                 this.parentalLock.isM3uGroupLocked(
                     playlistId,
                     channel?.group?.title ?? ''

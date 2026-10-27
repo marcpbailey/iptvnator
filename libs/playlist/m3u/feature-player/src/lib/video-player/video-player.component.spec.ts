@@ -331,6 +331,25 @@ describe('VideoPlayerComponent', () => {
         expect(recordStarted).not.toHaveBeenCalled();
     });
 
+    it('does not remember M3U video on demand as a live channel', () => {
+        const movie = {
+            ...sampleChannel,
+            name: 'Example Movie',
+            url: 'https://example.test/movie.mp4',
+        };
+        const recordStarted = jest
+            .spyOn(
+                TestBed.inject(PlaybackResumeService),
+                'recordPlaybackStarted'
+            )
+            .mockResolvedValue(undefined);
+
+        syncStoreState(movie);
+        fixture.detectChanges();
+
+        expect(recordStarted).not.toHaveBeenCalled();
+    });
+
     it('does not restore a channel in a locked group', () => {
         const resume = TestBed.inject(PlaybackResumeService);
         jest.spyOn(
