@@ -1,10 +1,15 @@
 import { TestBed } from '@angular/core/testing';
 import { LazySnackBar } from '@iptvnator/services/lazy-snack-bar';
-import { PlaylistsService, SettingsStore } from '@iptvnator/services';
+import {
+    EpgSourceSettingsService,
+    PlaylistsService,
+    SettingsStore,
+} from '@iptvnator/services';
 import { TranslateService } from '@ngx-translate/core';
 import { firstValueFrom, of } from 'rxjs';
 import { EpgRuntimeBridgeService } from './epg-runtime-bridge.service';
 import { EpgService } from './epg.service';
+import { EpgProgram } from '@iptvnator/shared/interfaces';
 
 describe('EpgService channel window', () => {
     const getProgramsForChannels = jest.fn();
@@ -167,5 +172,51 @@ describe('EpgService channel window', () => {
         expect(await firstValueFrom(service.currentChannelWindowLoading$)).toBe(
             false
         );
+    });
+
+    it('ignores a window response after source reconciliation starts', async () => {
+        let resolveWindow!: (value: Record<string, EpgProgram[]>) => void;
+        getProgramsForChannels.mockReturnValueOnce(
+            new Promise((resolve) => {
+                resolveWindow = resolve;
+            })
+        );
+        const original = window.electron;
+        let complete!: (result: { success: boolean }) => void;
+        window.electron = {
+            reconcileEpgSources: () =>
+                new Promise((resolve) => {
+                    complete = resolve;
+                }),
+        } as Partial<typeof window.electron> as typeof window.electron;
+        try {
+            const pending = service.loadChannelProgramsForWindow(
+                'shared-id',
+                Date.UTC(2026, 8, 6),
+                Date.UTC(2026, 8, 7),
+                ['removed-guide']
+            );
+            const sources = TestBed.inject(EpgSourceSettingsService);
+            const reconciliation = sources.synchronize([]);
+            resolveWindow({
+                'shared-id': [
+                    {
+                        channel: 'shared-id',
+                        start: '2026-09-06T01:00:00.000Z',
+                        stop: '2026-09-06T02:00:00.000Z',
+                        title: 'Removed source programme',
+                    },
+                ],
+            });
+            await pending;
+            expect(await firstValueFrom(service.currentEpgPrograms$)).toEqual(
+                []
+            );
+            await Promise.resolve();
+            complete({ success: true });
+            await reconciliation;
+        } finally {
+            window.electron = original;
+        }
     });
 });

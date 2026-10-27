@@ -207,6 +207,10 @@ export class EpgService {
         currentDayWindow?: { fromMs: number; toMs: number }
     ): Promise<void> {
         const requestId = ++this.programRequestId;
+        const sourceRevision = this.sourceSettings.revision();
+        const isCurrent = () =>
+            requestId === this.programRequestId &&
+            sourceRevision === this.sourceSettings.revision();
         const lookupKey = channelId.trim();
         if (!this.epgBridge.supportsGuide || !lookupKey) {
             this.currentWindowIdentity = null;
@@ -240,7 +244,7 @@ export class EpgService {
                 toMs,
                 playlistSourceUrls
             );
-            if (requestId !== this.programRequestId) return;
+            if (!isCurrent()) return;
             const currentPrograms = currentDayWindow
                 ? await this.channelWindow.programs(
                       lookupKey,
@@ -249,7 +253,7 @@ export class EpgService {
                       playlistSourceUrls
                   )
                 : [];
-            if (requestId !== this.programRequestId) return;
+            if (!isCurrent()) return;
             const combined = Array.from(
                 new Map(
                     [...programs, ...currentPrograms].map((program) => [
@@ -266,11 +270,11 @@ export class EpgService {
                     lookupKey,
                     playlistSourceUrls
                 ));
-            if (requestId !== this.programRequestId) return;
+            if (!isCurrent()) return;
             this.currentChannelHasPrograms.next(hasAny);
             this.currentChannelWindowLoading.next(false);
         } catch (error) {
-            if (requestId !== this.programRequestId) return;
+            if (!isCurrent()) return;
             console.error('EPG guide programme lookup error:', error);
             this.showErrorSnackbar();
             this.epgAvailable.next(false);
