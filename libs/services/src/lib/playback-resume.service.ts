@@ -41,7 +41,7 @@ export class PlaybackResumeService {
     }
 
     peekPendingResumeStreamUrl(playlistId: string): string | null {
-        if (this.pendingResume?.playlistId !== playlistId) {
+        if (!this.pendingResume || this.pendingResume.playlistId !== playlistId) {
             return null;
         }
 
