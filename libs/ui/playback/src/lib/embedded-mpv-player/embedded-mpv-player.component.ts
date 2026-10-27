@@ -565,14 +565,11 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
             const id = this.controller.sessionId();
             const loop = this.loopMode() === 'program';
             if (id) {
-                void this.controller
-                    .setLoop(loop)
-                    .catch((error) =>
-                        console.warn(
-                            'Could not set embedded MPV loop mode.',
-                            error
-                        )
+                untracked(() => {
+                    void this.controller.setLoop(loop).catch((error) =>
+                        console.warn('Could not set embedded MPV loop mode.', error)
                     );
+                });
             }
         });
 
