@@ -156,6 +156,14 @@ export class EmbeddedMpvPlayerComponent implements OnDestroy {
     readonly loopMode = computed(
         () => this.settingsStore.loopMode?.() ?? 'disabled'
     );
+    readonly loopModeLabelKey = computed(() => {
+        const mode = this.loopMode();
+        return mode === 'program'
+            ? 'SETTINGS.LOOP_MODE_PROGRAM'
+            : mode === 'channel'
+              ? 'SETTINGS.LOOP_MODE_CHANNEL'
+              : 'SETTINGS.LOOP_MODE_DISABLED';
+    });
     readonly speedPresets = SPEED_PRESETS;
     readonly aspectPresets = ASPECT_PRESETS;
 

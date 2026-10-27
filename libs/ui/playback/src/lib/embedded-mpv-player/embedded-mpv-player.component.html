@@ -420,12 +420,10 @@
                             [attr.aria-label]="
                                 ('SETTINGS.LOOP_MODE' | translate) +
                                 ': ' +
-                                ('SETTINGS.LOOP_MODE_' +
-                                    loopMode().toUpperCase() | translate)
+                                (loopModeLabelKey() | translate)
                             "
                             [matTooltip]="
-                                'SETTINGS.LOOP_MODE_' + loopMode().toUpperCase()
-                                    | translate
+                                loopModeLabelKey() | translate
                             "
                             matTooltipPosition="above"
                         >
