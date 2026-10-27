@@ -156,10 +156,11 @@ describe('SettingsSearchService', () => {
         expect(entries).not.toContain('vod-auto-failover');
         // Embedded MPV rows wait for the support probe.
         expect(entries).not.toContain('embedded-mpv-extra-options');
+        expect(entries).not.toContain('embedded-mpv-keep-controls-visible');
         expect(entries).not.toContain('embedded-mpv-frame-copy');
         // Server rows need the self-hosted PWA's server storage.
         expect(entries).not.toContain('server-connection');
-        expect(entries.length).toBe(SETTINGS_SEARCH_ENTRIES.length - 8);
+        expect(entries.length).toBe(SETTINGS_SEARCH_ENTRIES.length - 9);
     });
 
     it('offers the server section and rows with server storage', () => {
@@ -211,6 +212,7 @@ describe('SettingsSearchService', () => {
 
             expect(entries).toContain('embedded-mpv-extra-options');
             expect(entries).toContain('embedded-mpv-auto-reconnect');
+            expect(entries).toContain('embedded-mpv-keep-controls-visible');
             // Frame copy is not available on this machine, so the row the
             // settings page never renders must not be offered either.
             expect(entries).not.toContain('embedded-mpv-frame-copy');
